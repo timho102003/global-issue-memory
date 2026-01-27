@@ -1,8 +1,8 @@
 # Product Requirements Document: Global Issue Memory (GIM)
 
-**Version:** 1.1
-**Date:** 2025-01-27
-**Status:** In Progress - Phase 1 (Foundation)
+**Version:** 1.2
+**Date:** 2026-01-27
+**Status:** In Progress - Phase 2 (Transport & Database)
 
 ---
 
@@ -197,6 +197,36 @@ The MRE is the **most critical artifact** for helping other users. Requirements:
 | FR-6.4 | `confirm_fix`: Report fix success/failure (critical for analytics) | P0 |
 | FR-6.5 | `report_usage`: Report usage events back to server for analytics | P0 |
 | FR-6.6 | All responses are structured, machine-readable | P0 |
+| FR-6.7 | Support **stdio** transport for local AI assistants (Claude Code, Cursor) | P0 |
+| FR-6.8 | Support **streamable HTTP** transport for remote AI assistants | P0 |
+| FR-6.9 | OAuth2.0 authentication for HTTP transport | P0 |
+| FR-6.10 | Dual transport mode: run both stdio and HTTP simultaneously | P1 |
+
+##### FR-6.A: Transport & Authentication Details
+
+| Transport | Use Case | Authentication | Endpoint |
+|-----------|----------|----------------|----------|
+| **stdio** | Local CLI tools (Claude Code, Cursor, local MCP clients) | None (local trust) | stdin/stdout |
+| **streamable-http** | Remote clients, web integrations, hosted AI assistants | OAuth2.0 Bearer Token | `POST /mcp` |
+
+**OAuth2.0 Scopes:**
+
+| Scope | Permissions |
+|-------|-------------|
+| `gim:read` | Search issues, retrieve fix bundles |
+| `gim:write` | Submit issues, confirm fixes, report usage |
+| `gim:admin` | (Future) Moderation, merge approval, analytics access |
+
+**Security Requirements:**
+
+| ID | Requirement | Priority |
+|----|-------------|----------|
+| FR-6.A.1 | HTTPS required for HTTP transport (TLS 1.2+) | P0 |
+| FR-6.A.2 | JWT access token validation against issuer JWKS | P0 |
+| FR-6.A.3 | DNS rebinding protection for localhost | P0 |
+| FR-6.A.4 | CORS configured for allowed origins only | P0 |
+| FR-6.A.5 | Rate limiting per client_id | P1 |
+| FR-6.A.6 | Token expiration enforcement (max 1 hour) | P0 |
 
 #### FR-7: Search & Retrieval
 
@@ -248,10 +278,26 @@ The MRE is the **most critical artifact** for helping other users. Requirements:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                    INGESTION LAYER (AI-Only)                         │
 │                                                                      │
-│                    ┌─────────────────┐                               │
-│                    │  MCP submit_issue│                              │
-│                    │  (AI Assistants) │                              │
-│                    └────────┬────────┘                               │
+│    ┌────────────────────────┐    ┌────────────────────────┐         │
+│    │   LOCAL AI CLIENTS     │    │   REMOTE AI CLIENTS    │         │
+│    │  (Claude Code, Cursor) │    │   (Web, Hosted AIs)    │         │
+│    └───────────┬────────────┘    └───────────┬────────────┘         │
+│                │                              │                      │
+│                │ stdio                        │ HTTP + OAuth2.0      │
+│                │                              │                      │
+│                ▼                              ▼                      │
+│    ┌────────────────────────────────────────────────────────┐       │
+│    │                MCP SERVER (FastMCP)                     │       │
+│    │  ┌──────────────────┐    ┌──────────────────────────┐  │       │
+│    │  │ stdio transport  │    │ streamable-http transport │  │       │
+│    │  │ (local, no auth) │    │ (POST /mcp + OAuth2.0)    │  │       │
+│    │  └──────────────────┘    └──────────────────────────┘  │       │
+│    └───────────────────────────┬────────────────────────────┘       │
+│                                │                                     │
+│                    ┌───────────┴───────────┐                        │
+│                    │  MCP Tools Handler    │                        │
+│                    │  (submit, search, etc)│                        │
+│                    └───────────┬───────────┘                        │
 │                             │                                        │
 │                             ▼                                        │
 │  ┌───────────────────────────────────────┐                          │
@@ -1062,4 +1108,4 @@ This shows a complete submission from an AI assistant after resolving an issue:
 ---
 
 *Document maintained by: Product Team*
-*Last updated: 2025-01-27*
+*Last updated: 2026-01-27*

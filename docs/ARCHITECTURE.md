@@ -73,11 +73,92 @@ The MCP server is the primary interface for AI assistants to interact with GIM.
 - Handle tool routing and validation
 - Manage server lifecycle (startup/shutdown)
 - Initialize database connections
+- Support multiple transport protocols (stdio and HTTP)
+- Authenticate remote clients via OAuth2.0
 
 **Technology:**
-- Built on Anthropic MCP Python SDK
-- Uses stdio for communication
+- Built on FastMCP (Anthropic MCP Python SDK)
+- Dual transport support: stdio (local) and streamable HTTP (remote)
+- OAuth2.0 authentication for HTTP transport
 - Async/await for all operations
+
+#### Transport Modes
+
+| Mode | Use Case | Endpoint | Authentication |
+|------|----------|----------|----------------|
+| **stdio** | Local CLI tools (Claude Code, Cursor) | stdin/stdout | None (local trust) |
+| **streamable-http** | Remote clients, web integrations | `POST /mcp` | OAuth2.0 Bearer Token |
+
+#### OAuth2.0 Authentication (HTTP Transport)
+
+For remote access, GIM implements OAuth2.0 following the MCP specification:
+
+```
+┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
+│   MCP Client    │      │  OAuth Provider │      │   GIM Server    │
+│  (AI Assistant) │      │   (Auth Server) │      │ (Resource Server)│
+└────────┬────────┘      └────────┬────────┘      └────────┬────────┘
+         │                        │                        │
+         │  1. Request Token      │                        │
+         │───────────────────────►│                        │
+         │                        │                        │
+         │  2. Access Token       │                        │
+         │◄───────────────────────│                        │
+         │                        │                        │
+         │  3. MCP Request + Bearer Token                  │
+         │────────────────────────────────────────────────►│
+         │                        │                        │
+         │                        │  4. Verify Token       │
+         │                        │◄───────────────────────│
+         │                        │                        │
+         │                        │  5. Token Valid        │
+         │                        │───────────────────────►│
+         │                        │                        │
+         │  6. MCP Response                                │
+         │◄────────────────────────────────────────────────│
+```
+
+**OAuth2.0 Configuration:**
+
+```python
+from mcp.server.auth.settings import AuthSettings
+
+auth_settings = AuthSettings(
+    issuer_url="https://auth.gim.example.com",
+    resource_server_url="https://api.gim.example.com",
+    required_scopes=["gim:read", "gim:write"],
+)
+```
+
+**Scopes:**
+
+| Scope | Permissions |
+|-------|-------------|
+| `gim:read` | Search issues, get fix bundles |
+| `gim:write` | Submit issues, confirm fixes, report usage |
+| `gim:admin` | (Future) Moderation, merge approval |
+
+#### Running the Server
+
+**Local Mode (stdio):**
+```bash
+python -m src.server --transport stdio
+```
+
+**Remote Mode (HTTP with OAuth2.0):**
+```bash
+python -m src.server --transport streamable-http --host 0.0.0.0 --port 8000
+```
+
+**Dual Mode (both transports):**
+```bash
+# Option 1: Run separate processes
+python -m src.server --transport stdio &
+python -m src.server --transport streamable-http --port 8000 &
+
+# Option 2: Single process with both (planned)
+python -m src.server --transport all
+```
 
 ### 2. Data Models (`src/models/`)
 
@@ -488,15 +569,39 @@ Response
 
 ### 4. Access Control
 
-**AI Assistants:**
+**AI Assistants (Local - stdio):**
 - Full read/write access via MCP
 - Session ID tracking for analytics
-- No authentication required (public service)
+- No authentication required (local trust model)
+
+**AI Assistants (Remote - HTTP):**
+- OAuth2.0 Bearer token required
+- Scopes control read/write permissions
+- Token validation on every request
+- Rate limiting per client_id
 
 **Humans:**
 - Read-only dashboard access
 - Cannot submit issues directly
 - No private data exposed (all sanitized)
+
+### 5. OAuth2.0 Security
+
+**Token Requirements:**
+- Access tokens must be JWT format
+- Tokens validated against issuer's JWKS endpoint
+- Short expiration (1 hour recommended)
+- Refresh tokens for long-lived sessions
+
+**Transport Security:**
+- HTTPS required for HTTP transport (TLS 1.2+)
+- DNS rebinding protection enabled
+- CORS configured for known origins only
+
+**Client Registration:**
+- Dynamic client registration supported
+- Client secrets rotated periodically
+- Scopes approved per client
 
 ## Performance Considerations
 

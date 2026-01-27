@@ -44,6 +44,19 @@ This document tracks the implementation progress of Global Issue Memory (GIM).
 | Qdrant collection setup | Done | Auto-creates on startup |
 | Embedding storage | Done | Multi-vector per issue |
 
+### Week 5-6: Remote MCP Transport & Authentication
+
+| Task | Status | Notes |
+|------|--------|-------|
+| Migrate to FastMCP | Pending | Replace low-level Server with FastMCP |
+| Streamable HTTP transport | Pending | Endpoint: `POST /mcp` |
+| OAuth2.0 integration | Pending | Bearer token authentication |
+| Dual transport support | Pending | stdio (local) + HTTP (remote) |
+| Auth settings configuration | Pending | issuer_url, scopes, JWKS validation |
+| Transport security | Pending | HTTPS, CORS, DNS rebinding protection |
+| Rate limiting | Pending | Per client_id limits |
+| Integration tests | Pending | Test both transports with auth |
+
 ### Week 7-8: Canonicalization Engine
 
 | Task | Status | Notes |
@@ -119,10 +132,14 @@ This document tracks the implementation progress of Global Issue Memory (GIM).
 **Phase 1 Complete - Moving to Phase 2**
 
 Next immediate tasks:
-1. Create Supabase database schema
-2. Run migrations
-3. Wire up tool implementations to database
-4. Begin canonicalization engine
+1. **Migrate to FastMCP with dual transport support**
+   - Refactor server.py to use FastMCP
+   - Add streamable HTTP transport (`POST /mcp`)
+   - Implement OAuth2.0 authentication for remote access
+2. Create Supabase database schema
+3. Run migrations
+4. Wire up tool implementations to database
+5. Begin canonicalization engine
 
 ---
 
@@ -132,6 +149,8 @@ Next immediate tasks:
 |-----------|--------|--------|
 | Core models complete | Week 2 | **Done** |
 | Sanitization pipeline complete | Week 4 | **Done** |
+| Dual transport (stdio + HTTP) | Week 6 | Pending |
+| OAuth2.0 authentication | Week 6 | Pending |
 | Database operational | Week 6 | Pending |
 | Search working E2E | Week 10 | Pending |
 | Dashboard MVP | Week 12 | Pending |
@@ -171,4 +190,4 @@ Next immediate tasks:
 
 ---
 
-*Last updated: 2025-01-27*
+*Last updated: 2026-01-27*
