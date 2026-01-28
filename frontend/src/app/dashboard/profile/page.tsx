@@ -1,10 +1,14 @@
 "use client";
 
+import { useState } from "react";
+import { LogIn } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { GimIdCard } from "@/components/profile/gim-id-card";
 import { ContributionHeatmap } from "@/components/profile/contribution-heatmap";
 import { McpConfigCard } from "@/components/profile/mcp-config-card";
+import { AuthModal } from "@/components/auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { formatNumber } from "@/lib/utils";
 
@@ -43,12 +47,45 @@ const mockStats = {
 
 /**
  * Profile page matching GIM.pen design (QV9MN).
+ * Requires authentication to view.
  */
 export default function ProfilePage() {
-  const { gimId } = useAuthStore();
+  const { gimId, isAuthenticated } = useAuthStore();
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Use mock ID if not authenticated
-  const displayGimId = gimId || "a1b2c3d4-e5f6-7890-abcd-ef1234567890";
+  // Show sign-in prompt if not authenticated
+  if (!isAuthenticated) {
+    return (
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 px-10 py-6">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-muted">
+            <LogIn className="h-8 w-8 text-text-muted" />
+          </div>
+          <h1 className="text-2xl font-semibold text-text-primary">
+            Sign in to view your profile
+          </h1>
+          <p className="max-w-md text-sm text-text-secondary">
+            Your profile shows your GIM ID, contribution stats, and MCP configuration.
+            Sign in or create a GIM ID to access it.
+          </p>
+          <div className="flex gap-3">
+            <Button onClick={() => setShowAuthModal(true)}>
+              <LogIn className="h-4 w-4" />
+              Sign In
+            </Button>
+          </div>
+        </div>
+        <AuthModal
+          open={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+          defaultView="signin"
+          redirectTo="/dashboard/profile"
+        />
+      </main>
+    );
+  }
+
+  const displayGimId = gimId!;
 
   return (
     <main className="flex flex-1 flex-col gap-6 px-10 py-6">

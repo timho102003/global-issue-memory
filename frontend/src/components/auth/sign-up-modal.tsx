@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { UserPlus, Copy, Check } from "lucide-react";
 import {
   Modal,
@@ -18,15 +19,17 @@ interface SignUpModalProps {
   open: boolean;
   onClose: () => void;
   onSwitchToSignIn: () => void;
+  redirectTo?: string;
 }
 
 /**
  * Sign Up Modal component matching GIM.pen design (iAl8m).
  */
-export function SignUpModal({ open, onClose, onSwitchToSignIn }: SignUpModalProps) {
+export function SignUpModal({ open, onClose, onSwitchToSignIn, redirectTo = "/dashboard" }: SignUpModalProps) {
   const [generatedId, setGeneratedId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [description, setDescription] = useState("");
+  const router = useRouter();
   const { createGimIdAsync, signIn, isLoading, error } = useAuth();
 
   const handleGenerate = async () => {
@@ -53,6 +56,7 @@ export function SignUpModal({ open, onClose, onSwitchToSignIn }: SignUpModalProp
           onClose();
           setGeneratedId(null);
           setDescription("");
+          router.push(redirectTo);
         },
       });
     }

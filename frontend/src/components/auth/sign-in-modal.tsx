@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { LogIn } from "lucide-react";
 import {
   Modal,
@@ -18,13 +19,15 @@ interface SignInModalProps {
   open: boolean;
   onClose: () => void;
   onSwitchToSignUp: () => void;
+  redirectTo?: string;
 }
 
 /**
  * Sign In Modal component matching GIM.pen design (lNFWv).
  */
-export function SignInModal({ open, onClose, onSwitchToSignUp }: SignInModalProps) {
+export function SignInModal({ open, onClose, onSwitchToSignUp, redirectTo = "/dashboard" }: SignInModalProps) {
   const [gimId, setGimId] = useState("");
+  const router = useRouter();
   const { signIn, isLoading, error, isValidGimId } = useAuth();
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -34,6 +37,7 @@ export function SignInModal({ open, onClose, onSwitchToSignUp }: SignInModalProp
         onSuccess: () => {
           onClose();
           setGimId("");
+          router.push(redirectTo);
         },
       });
     }

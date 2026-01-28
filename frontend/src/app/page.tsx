@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   Header,
   Hero,
@@ -20,7 +21,14 @@ import { AuthModal } from "@/components/auth";
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authView, setAuthView] = useState<"signin" | "signup">("signup");
+  const router = useRouter();
 
+  // "Get Started Free" navigates directly to dashboard (no auth required)
+  const goToDashboard = () => {
+    router.push("/dashboard");
+  };
+
+  // "Join the Community" in header opens sign up modal
   const openSignUp = () => {
     setAuthView("signup");
     setShowAuthModal(true);
@@ -34,13 +42,13 @@ export default function LandingPage() {
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-bg-gradient-start to-bg-gradient-end">
       <Header onCtaClick={openSignUp} />
       <main className="flex-1">
-        <Hero onPrimaryClick={openSignUp} onSecondaryClick={openGitHub} />
+        <Hero onPrimaryClick={goToDashboard} onSecondaryClick={openGitHub} />
         <ProblemSection />
         <SolutionSection />
         <HowItWorks />
         <FeaturesSection />
         <FaqSection />
-        <CtaSection onPrimaryClick={openSignUp} onSecondaryClick={openGitHub} />
+        <CtaSection onPrimaryClick={goToDashboard} onSecondaryClick={openGitHub} />
       </main>
       <Footer />
 

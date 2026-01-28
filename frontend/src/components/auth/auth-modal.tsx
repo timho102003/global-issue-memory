@@ -10,12 +10,13 @@ interface AuthModalProps {
   open: boolean;
   onClose: () => void;
   defaultView?: AuthView;
+  redirectTo?: string;
 }
 
 /**
  * Unified Auth Modal that manages switching between Sign In and Sign Up.
  */
-export function AuthModal({ open, onClose, defaultView = "signin" }: AuthModalProps) {
+export function AuthModal({ open, onClose, defaultView = "signin", redirectTo = "/dashboard" }: AuthModalProps) {
   const [view, setView] = useState<AuthView>(defaultView);
 
   const handleSwitchToSignIn = () => setView("signin");
@@ -27,6 +28,7 @@ export function AuthModal({ open, onClose, defaultView = "signin" }: AuthModalPr
         open={open}
         onClose={onClose}
         onSwitchToSignUp={handleSwitchToSignUp}
+        redirectTo={redirectTo}
       />
     );
   }
@@ -36,6 +38,7 @@ export function AuthModal({ open, onClose, defaultView = "signin" }: AuthModalPr
       open={open}
       onClose={onClose}
       onSwitchToSignIn={handleSwitchToSignIn}
+      redirectTo={redirectTo}
     />
   );
 }
