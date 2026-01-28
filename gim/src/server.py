@@ -978,12 +978,57 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         try:
             body = await request.json()
             arguments = body.get("arguments", {})
+            query = arguments.get("query", "").strip()
+            limit = arguments.get("limit", 10)
+            offset = arguments.get("offset", 0)
 
-            # Map frontend params to tool params
+            # If no query, return all recent issues from database
+            if not query:
+                all_issues = await query_records(
+                    table="master_issues",
+                    order_by="created_at",
+                    ascending=False,
+                    limit=limit,
+                )
+
+                issues = []
+                for issue in all_issues:
+                    # Get child issue count
+                    child_issues = await query_records(
+                        table="child_issues",
+                        filters={"master_issue_id": issue.get("id")},
+                        limit=1000,
+                    )
+                    canonical_error = issue.get("canonical_error") or ""
+                    issues.append({
+                        "id": issue.get("id"),
+                        "canonical_title": canonical_error[:100] if canonical_error else "",
+                        "description": issue.get("root_cause", "") or "",
+                        "root_cause_category": issue.get("root_cause_category", "environment"),
+                        "confidence_score": float(issue.get("confidence_score", 0) or 0),
+                        "child_issue_count": len(child_issues),
+                        "environment_coverage": issue.get("environment_coverage", []) or [],
+                        "verification_count": issue.get("verification_count", 0) or 0,
+                        "status": issue.get("status", "active"),
+                        "created_at": issue.get("created_at", ""),
+                        "updated_at": issue.get("updated_at", "") or issue.get("created_at", ""),
+                    })
+
+                return JSONResponse(
+                    content={
+                        "issues": issues,
+                        "total": len(issues),
+                        "limit": limit,
+                        "offset": offset,
+                    },
+                    status_code=200,
+                )
+
+            # Map frontend params to tool params for search
             tool_args = {
-                "error_message": arguments.get("query", ""),
+                "error_message": query,
                 "provider": arguments.get("provider"),
-                "limit": arguments.get("limit", 10),
+                "limit": limit,
             }
 
             # Remove None values
@@ -994,7 +1039,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
 
             if not result:
                 return JSONResponse(
-                    content={"issues": [], "total": 0, "limit": 10, "offset": 0},
+                    content={"issues": [], "total": 0, "limit": limit, "offset": offset},
                     status_code=200,
                 )
 
@@ -1006,15 +1051,16 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             # Transform to frontend expected format
             issues = []
             for r in tool_response.get("results", []):
+                canonical_error = r.get("canonical_error") or ""
                 issues.append({
                     "id": r.get("issue_id"),
-                    "canonical_title": r.get("canonical_error", "")[:100],
-                    "description": r.get("root_cause", ""),
+                    "canonical_title": canonical_error[:100] if canonical_error else "",
+                    "description": r.get("root_cause", "") or "",
                     "root_cause_category": r.get("root_cause_category", "environment"),
-                    "confidence_score": r.get("similarity_score", 0),
+                    "confidence_score": r.get("similarity_score", 0) or 0,
                     "child_issue_count": 0,
                     "environment_coverage": [],
-                    "verification_count": r.get("verification_count", 0),
+                    "verification_count": r.get("verification_count", 0) or 0,
                     "status": "active",
                     "created_at": "",
                     "updated_at": "",
@@ -1024,8 +1070,8 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 content={
                     "issues": issues,
                     "total": len(issues),
-                    "limit": arguments.get("limit", 10),
-                    "offset": arguments.get("offset", 0),
+                    "limit": limit,
+                    "offset": offset,
                 },
                 status_code=200,
             )
@@ -1035,6 +1081,83 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 content=ErrorResponse(
                     error="server_error",
                     error_description="An unexpected error occurred during search",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/issues", methods=["GET"])
+    async def api_list_issues(request: Request) -> JSONResponse:
+        """List all issues.
+
+        Query params:
+            limit: Max number of issues to return (default 50)
+            offset: Number of issues to skip (default 0)
+            category: Filter by root cause category
+            status: Filter by status (active, resolved)
+
+        Returns:
+            JSON with paginated issues list.
+        """
+        try:
+            limit = int(request.query_params.get("limit", 50))
+            offset = int(request.query_params.get("offset", 0))
+            category = request.query_params.get("category")
+            status = request.query_params.get("status")
+
+            # Build filters
+            filters = {}
+            if category:
+                filters["root_cause_category"] = category
+            if status:
+                filters["status"] = status
+
+            # Query issues
+            all_issues = await query_records(
+                table="master_issues",
+                filters=filters if filters else None,
+                order_by="created_at",
+                ascending=False,
+                limit=limit,
+            )
+
+            issues = []
+            for issue in all_issues:
+                # Get child issue count
+                child_issues = await query_records(
+                    table="child_issues",
+                    filters={"master_issue_id": issue.get("id")},
+                    limit=1000,
+                )
+                canonical_error = issue.get("canonical_error") or ""
+                issues.append({
+                    "id": issue.get("id"),
+                    "canonical_title": canonical_error[:100] if canonical_error else "",
+                    "description": issue.get("root_cause", "") or "",
+                    "root_cause_category": issue.get("root_cause_category", "environment"),
+                    "confidence_score": float(issue.get("confidence_score", 0) or 0),
+                    "child_issue_count": len(child_issues),
+                    "environment_coverage": issue.get("environment_coverage", []) or [],
+                    "verification_count": issue.get("verification_count", 0) or 0,
+                    "status": issue.get("status", "active"),
+                    "created_at": issue.get("created_at", ""),
+                    "updated_at": issue.get("updated_at", "") or issue.get("created_at", ""),
+                })
+
+            return JSONResponse(
+                content={
+                    "issues": issues,
+                    "total": len(issues),
+                    "limit": limit,
+                    "offset": offset,
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"List issues API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
                 ).model_dump(),
                 status_code=500,
             )
