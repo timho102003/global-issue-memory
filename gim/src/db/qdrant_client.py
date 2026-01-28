@@ -1,7 +1,7 @@
-"""Qdrant vector database client wrapper."""
+"""Qdrant vector database client wrapper with error handling and logging."""
 
+import threading
 from typing import Any, Dict, List, Optional
-from uuid import UUID
 
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import (
@@ -11,13 +11,17 @@ from qdrant_client.http.models import (
     MatchValue,
     PointStruct,
     VectorParams,
-    SearchParams,
 )
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 from src.config import get_settings
+from src.exceptions import QdrantError
+from src.logging_config import get_logger, log_operation
 
 
 _client: Optional[QdrantClient] = None
+_client_lock = threading.Lock()
+logger = get_logger("db.qdrant")
 
 # Collection name for GIM issues
 COLLECTION_NAME = "gim_issues"
@@ -35,66 +39,110 @@ def _get_vector_dim() -> int:
 def get_qdrant_client() -> QdrantClient:
     """Get or create Qdrant client singleton.
 
+    Thread-safe singleton pattern using double-checked locking.
+
     Returns:
         QdrantClient: Qdrant client instance.
+
+    Raises:
+        QdrantError: If client creation fails.
     """
     global _client
     if _client is None:
-        settings = get_settings()
-        _client = QdrantClient(
-            url=settings.qdrant_url,
-            api_key=settings.qdrant_api_key,
-        )
+        with _client_lock:
+            # Double-check after acquiring lock
+            if _client is None:
+                try:
+                    settings = get_settings()
+                    _client = QdrantClient(
+                        url=settings.qdrant_url,
+                        api_key=settings.qdrant_api_key,
+                    )
+                    logger.info("Qdrant client initialized successfully")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Qdrant client: {e}")
+                    raise QdrantError(
+                        "Failed to initialize Qdrant client",
+                        operation="connect",
+                        original_error=e,
+                    )
     return _client
 
 
+@log_operation("qdrant.ensure_collection")
 async def ensure_collection_exists() -> None:
-    """Ensure the GIM issues collection exists with proper configuration."""
-    client = get_qdrant_client()
-    vector_dim = _get_vector_dim()
+    """Ensure the GIM issues collection exists with proper configuration.
 
-    # Check if collection exists
-    collections = client.get_collections().collections
-    collection_names = [c.name for c in collections]
+    Raises:
+        QdrantError: If collection creation fails.
+    """
+    try:
+        client = get_qdrant_client()
+        vector_dim = _get_vector_dim()
 
-    if COLLECTION_NAME not in collection_names:
-        # Create collection with multi-vector config
-        client.create_collection(
-            collection_name=COLLECTION_NAME,
-            vectors_config={
-                "error_signature": VectorParams(
-                    size=vector_dim,
-                    distance=Distance.COSINE,
-                ),
-                "root_cause": VectorParams(
-                    size=vector_dim,
-                    distance=Distance.COSINE,
-                ),
-                "fix_summary": VectorParams(
-                    size=vector_dim,
-                    distance=Distance.COSINE,
-                ),
-            },
+        # Check if collection exists
+        collections = client.get_collections().collections
+        collection_names = [c.name for c in collections]
+
+        if COLLECTION_NAME not in collection_names:
+            logger.info(f"Creating collection {COLLECTION_NAME}")
+            # Create collection with multi-vector config
+            client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config={
+                    "error_signature": VectorParams(
+                        size=vector_dim,
+                        distance=Distance.COSINE,
+                    ),
+                    "root_cause": VectorParams(
+                        size=vector_dim,
+                        distance=Distance.COSINE,
+                    ),
+                    "fix_summary": VectorParams(
+                        size=vector_dim,
+                        distance=Distance.COSINE,
+                    ),
+                },
+            )
+
+            # Create payload indexes for filtering
+            client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name="root_cause_category",
+                field_schema="keyword",
+            )
+            client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name="model_provider",
+                field_schema="keyword",
+            )
+            client.create_payload_index(
+                collection_name=COLLECTION_NAME,
+                field_name="status",
+                field_schema="keyword",
+            )
+            logger.info(f"Collection {COLLECTION_NAME} created successfully")
+        else:
+            logger.debug(f"Collection {COLLECTION_NAME} already exists")
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant API error during collection check/creation: {e}")
+        raise QdrantError(
+            f"Failed to ensure collection exists: {e}",
+            collection=COLLECTION_NAME,
+            operation="ensure_collection",
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during collection check/creation: {e}")
+        raise QdrantError(
+            f"Failed to ensure collection exists: {str(e)}",
+            collection=COLLECTION_NAME,
+            operation="ensure_collection",
+            original_error=e,
         )
 
-        # Create payload indexes for filtering
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="root_cause_category",
-            field_schema="keyword",
-        )
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="model_provider",
-            field_schema="keyword",
-        )
-        client.create_payload_index(
-            collection_name=COLLECTION_NAME,
-            field_name="status",
-            field_schema="keyword",
-        )
 
-
+@log_operation("qdrant.upsert")
 async def upsert_issue_vectors(
     issue_id: str,
     error_signature_vector: List[float],
@@ -110,26 +158,50 @@ async def upsert_issue_vectors(
         root_cause_vector: Vector for root cause description.
         fix_summary_vector: Vector for fix summary.
         payload: Additional metadata payload.
+
+    Raises:
+        QdrantError: If upsert fails.
     """
-    client = get_qdrant_client()
-    await ensure_collection_exists()
+    try:
+        client = get_qdrant_client()
+        await ensure_collection_exists()
 
-    point = PointStruct(
-        id=issue_id,
-        vector={
-            "error_signature": error_signature_vector,
-            "root_cause": root_cause_vector,
-            "fix_summary": fix_summary_vector,
-        },
-        payload=payload,
-    )
+        point = PointStruct(
+            id=issue_id,
+            vector={
+                "error_signature": error_signature_vector,
+                "root_cause": root_cause_vector,
+                "fix_summary": fix_summary_vector,
+            },
+            payload=payload,
+        )
 
-    client.upsert(
-        collection_name=COLLECTION_NAME,
-        points=[point],
-    )
+        client.upsert(
+            collection_name=COLLECTION_NAME,
+            points=[point],
+        )
+        logger.debug(f"Upserted vectors for issue {issue_id}")
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant API error during upsert for issue {issue_id}: {e}")
+        raise QdrantError(
+            f"Failed to upsert issue vectors: {e}",
+            collection=COLLECTION_NAME,
+            operation="upsert",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during upsert for issue {issue_id}: {e}")
+        raise QdrantError(
+            f"Failed to upsert issue vectors: {str(e)}",
+            collection=COLLECTION_NAME,
+            operation="upsert",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )
 
 
+@log_operation("qdrant.search")
 async def search_similar_issues(
     query_vector: List[float],
     vector_name: str = "error_signature",
@@ -148,44 +220,69 @@ async def search_similar_issues(
 
     Returns:
         List[Dict[str, Any]]: List of matching issues with scores.
+
+    Raises:
+        QdrantError: If search fails.
     """
-    client = get_qdrant_client()
-    await ensure_collection_exists()
+    try:
+        client = get_qdrant_client()
+        await ensure_collection_exists()
 
-    # Build filter if provided
-    query_filter = None
-    if filters:
-        conditions = []
-        for field, value in filters.items():
-            conditions.append(
-                FieldCondition(
-                    key=field,
-                    match=MatchValue(value=value),
+        # Build filter if provided
+        query_filter = None
+        if filters:
+            conditions = []
+            for field, value in filters.items():
+                conditions.append(
+                    FieldCondition(
+                        key=field,
+                        match=MatchValue(value=value),
+                    )
                 )
-            )
-        query_filter = Filter(must=conditions)
+            query_filter = Filter(must=conditions)
 
-    # Use query_points with 'using' parameter for named vectors
-    response = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        using=vector_name,
-        limit=limit,
-        score_threshold=score_threshold,
-        query_filter=query_filter,
-        with_payload=True,
-    )
+        # Use query_points with 'using' parameter for named vectors
+        response = client.query_points(
+            collection_name=COLLECTION_NAME,
+            query=query_vector,
+            using=vector_name,
+            limit=limit,
+            score_threshold=score_threshold,
+            query_filter=query_filter,
+            with_payload=True,
+        )
 
-    return [
-        {
-            "id": str(point.id),
-            "score": point.score,
-            "payload": point.payload,
-        }
-        for point in response.points
-    ]
+        results = [
+            {
+                "id": str(point.id),
+                "score": point.score,
+                "payload": point.payload,
+            }
+            for point in response.points
+        ]
+        logger.debug(f"Found {len(results)} similar issues")
+        return results
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant API error during search: {e}")
+        raise QdrantError(
+            f"Failed to search similar issues: {e}",
+            collection=COLLECTION_NAME,
+            operation="search",
+            details={"vector_name": vector_name, "limit": limit},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during search: {e}")
+        raise QdrantError(
+            f"Failed to search similar issues: {str(e)}",
+            collection=COLLECTION_NAME,
+            operation="search",
+            details={"vector_name": vector_name, "limit": limit},
+            original_error=e,
+        )
 
 
+@log_operation("qdrant.delete")
 async def delete_issue_vectors(issue_id: str) -> bool:
     """Delete issue vectors from Qdrant.
 
@@ -194,19 +291,39 @@ async def delete_issue_vectors(issue_id: str) -> bool:
 
     Returns:
         bool: True if deleted successfully.
-    """
-    client = get_qdrant_client()
 
+    Raises:
+        QdrantError: If deletion fails.
+    """
     try:
+        client = get_qdrant_client()
         client.delete(
             collection_name=COLLECTION_NAME,
             points_selector=[issue_id],
         )
+        logger.debug(f"Deleted vectors for issue {issue_id}")
         return True
-    except Exception:
-        return False
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant API error during delete for issue {issue_id}: {e}")
+        raise QdrantError(
+            f"Failed to delete issue vectors: {e}",
+            collection=COLLECTION_NAME,
+            operation="delete",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to delete issue vectors for {issue_id}: {e}")
+        raise QdrantError(
+            f"Failed to delete issue vectors: {str(e)}",
+            collection=COLLECTION_NAME,
+            operation="delete",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )
 
 
+@log_operation("qdrant.get")
 async def get_issue_by_id(issue_id: str) -> Optional[Dict[str, Any]]:
     """Get issue vectors and payload by ID.
 
@@ -215,10 +332,12 @@ async def get_issue_by_id(issue_id: str) -> Optional[Dict[str, Any]]:
 
     Returns:
         Optional[Dict[str, Any]]: Issue data or None if not found.
-    """
-    client = get_qdrant_client()
 
+    Raises:
+        QdrantError: If retrieval fails.
+    """
     try:
+        client = get_qdrant_client()
         results = client.retrieve(
             collection_name=COLLECTION_NAME,
             ids=[issue_id],
@@ -226,10 +345,28 @@ async def get_issue_by_id(issue_id: str) -> Optional[Dict[str, Any]]:
             with_vectors=False,
         )
         if results:
+            logger.debug(f"Retrieved issue {issue_id} from Qdrant")
             return {
                 "id": str(results[0].id),
                 "payload": results[0].payload,
             }
+        logger.debug(f"Issue {issue_id} not found in Qdrant")
         return None
-    except Exception:
-        return None
+    except UnexpectedResponse as e:
+        logger.error(f"Qdrant API error during get for issue {issue_id}: {e}")
+        raise QdrantError(
+            f"Failed to get issue by ID: {e}",
+            collection=COLLECTION_NAME,
+            operation="get",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.warning(f"Failed to get issue {issue_id} from Qdrant: {e}")
+        raise QdrantError(
+            f"Failed to get issue by ID: {str(e)}",
+            collection=COLLECTION_NAME,
+            operation="get",
+            details={"issue_id": issue_id},
+            original_error=e,
+        )

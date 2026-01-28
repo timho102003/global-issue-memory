@@ -1,28 +1,53 @@
-"""Supabase database client wrapper."""
+"""Supabase database client wrapper with error handling and logging."""
 
+import threading
 from typing import Any, Dict, List, Optional
 
 from supabase import Client, create_client
+from supabase.lib.client_options import ClientOptions
+from postgrest.exceptions import APIError
 
 from src.config import get_settings
+from src.exceptions import SupabaseError
+from src.logging_config import get_logger, log_operation
 
 
 _client: Optional[Client] = None
+_client_lock = threading.Lock()
+logger = get_logger("db.supabase")
 
 
 def get_supabase_client() -> Client:
     """Get or create Supabase client singleton.
 
+    Thread-safe singleton pattern using double-checked locking.
+
     Returns:
         Client: Supabase client instance.
+
+    Raises:
+        SupabaseError: If client creation fails.
     """
     global _client
     if _client is None:
-        settings = get_settings()
-        _client = create_client(settings.supabase_url, settings.supabase_key)
+        with _client_lock:
+            # Double-check after acquiring lock
+            if _client is None:
+                try:
+                    settings = get_settings()
+                    _client = create_client(settings.supabase_url, settings.supabase_key)
+                    logger.info("Supabase client initialized successfully")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Supabase client: {e}")
+                    raise SupabaseError(
+                        "Failed to initialize Supabase client",
+                        operation="connect",
+                        original_error=e,
+                    )
     return _client
 
 
+@log_operation("supabase.insert")
 async def insert_record(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a record into a table.
 
@@ -32,12 +57,35 @@ async def insert_record(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
     Returns:
         Dict[str, Any]: Inserted record.
+
+    Raises:
+        SupabaseError: If insertion fails.
     """
-    client = get_supabase_client()
-    result = client.table(table).insert(data).execute()
-    return result.data[0] if result.data else {}
+    try:
+        client = get_supabase_client()
+        result = client.table(table).insert(data).execute()
+        logger.debug(f"Inserted record into {table}")
+        return result.data[0] if result.data else {}
+    except APIError as e:
+        logger.error(f"Supabase API error during insert to {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to insert record: {e.message}",
+            table=table,
+            operation="insert",
+            details={"code": e.code} if hasattr(e, "code") else None,
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during insert to {table}: {e}")
+        raise SupabaseError(
+            f"Failed to insert record: {str(e)}",
+            table=table,
+            operation="insert",
+            original_error=e,
+        )
 
 
+@log_operation("supabase.update")
 async def update_record(
     table: str,
     record_id: str,
@@ -54,12 +102,36 @@ async def update_record(
 
     Returns:
         Dict[str, Any]: Updated record.
+
+    Raises:
+        SupabaseError: If update fails.
     """
-    client = get_supabase_client()
-    result = client.table(table).update(data).eq(id_column, record_id).execute()
-    return result.data[0] if result.data else {}
+    try:
+        client = get_supabase_client()
+        result = client.table(table).update(data).eq(id_column, record_id).execute()
+        logger.debug(f"Updated record {record_id} in {table}")
+        return result.data[0] if result.data else {}
+    except APIError as e:
+        logger.error(f"Supabase API error during update in {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to update record: {e.message}",
+            table=table,
+            operation="update",
+            details={"record_id": record_id, "code": e.code if hasattr(e, "code") else None},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during update in {table}: {e}")
+        raise SupabaseError(
+            f"Failed to update record: {str(e)}",
+            table=table,
+            operation="update",
+            details={"record_id": record_id},
+            original_error=e,
+        )
 
 
+@log_operation("supabase.get")
 async def get_record(
     table: str,
     record_id: str,
@@ -74,12 +146,39 @@ async def get_record(
 
     Returns:
         Optional[Dict[str, Any]]: Record or None if not found.
+
+    Raises:
+        SupabaseError: If query fails.
     """
-    client = get_supabase_client()
-    result = client.table(table).select("*").eq(id_column, record_id).execute()
-    return result.data[0] if result.data else None
+    try:
+        client = get_supabase_client()
+        result = client.table(table).select("*").eq(id_column, record_id).execute()
+        if result.data:
+            logger.debug(f"Retrieved record {record_id} from {table}")
+            return result.data[0]
+        logger.debug(f"Record {record_id} not found in {table}")
+        return None
+    except APIError as e:
+        logger.error(f"Supabase API error during get from {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to get record: {e.message}",
+            table=table,
+            operation="get",
+            details={"record_id": record_id},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during get from {table}: {e}")
+        raise SupabaseError(
+            f"Failed to get record: {str(e)}",
+            table=table,
+            operation="get",
+            details={"record_id": record_id},
+            original_error=e,
+        )
 
 
+@log_operation("supabase.query")
 async def query_records(
     table: str,
     filters: Optional[Dict[str, Any]] = None,
@@ -100,22 +199,47 @@ async def query_records(
 
     Returns:
         List[Dict[str, Any]]: List of records.
+
+    Raises:
+        SupabaseError: If query fails.
     """
-    client = get_supabase_client()
-    query = client.table(table).select(select)
+    try:
+        client = get_supabase_client()
+        query = client.table(table).select(select)
 
-    if filters:
-        for column, value in filters.items():
-            query = query.eq(column, value)
+        if filters:
+            for column, value in filters.items():
+                query = query.eq(column, value)
 
-    if order_by:
-        query = query.order(order_by, desc=not ascending)
+        if order_by:
+            query = query.order(order_by, desc=not ascending)
 
-    query = query.limit(limit)
-    result = query.execute()
-    return result.data or []
+        query = query.limit(limit)
+        result = query.execute()
+        record_count = len(result.data or [])
+        logger.debug(f"Queried {record_count} records from {table}")
+        return result.data or []
+    except APIError as e:
+        logger.error(f"Supabase API error during query on {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to query records: {e.message}",
+            table=table,
+            operation="query",
+            details={"filters": filters, "limit": limit},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during query on {table}: {e}")
+        raise SupabaseError(
+            f"Failed to query records: {str(e)}",
+            table=table,
+            operation="query",
+            details={"filters": filters, "limit": limit},
+            original_error=e,
+        )
 
 
+@log_operation("supabase.delete")
 async def delete_record(
     table: str,
     record_id: str,
@@ -130,12 +254,40 @@ async def delete_record(
 
     Returns:
         bool: True if deleted, False otherwise.
+
+    Raises:
+        SupabaseError: If deletion fails.
     """
-    client = get_supabase_client()
-    result = client.table(table).delete().eq(id_column, record_id).execute()
-    return len(result.data or []) > 0
+    try:
+        client = get_supabase_client()
+        result = client.table(table).delete().eq(id_column, record_id).execute()
+        deleted = len(result.data or []) > 0
+        if deleted:
+            logger.debug(f"Deleted record {record_id} from {table}")
+        else:
+            logger.debug(f"Record {record_id} not found in {table} for deletion")
+        return deleted
+    except APIError as e:
+        logger.error(f"Supabase API error during delete from {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to delete record: {e.message}",
+            table=table,
+            operation="delete",
+            details={"record_id": record_id},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during delete from {table}: {e}")
+        raise SupabaseError(
+            f"Failed to delete record: {str(e)}",
+            table=table,
+            operation="delete",
+            details={"record_id": record_id},
+            original_error=e,
+        )
 
 
+@log_operation("supabase.increment")
 async def increment_field(
     table: str,
     record_id: str,
@@ -154,16 +306,39 @@ async def increment_field(
 
     Returns:
         Dict[str, Any]: Updated record.
+
+    Raises:
+        SupabaseError: If increment fails.
     """
-    client = get_supabase_client()
-    # Use RPC for atomic increment
-    result = client.rpc(
-        "increment_field",
-        {
-            "p_table": table,
-            "p_id": record_id,
-            "p_field": field,
-            "p_amount": amount,
-        }
-    ).execute()
-    return result.data if result.data else {}
+    try:
+        client = get_supabase_client()
+        # Use RPC for atomic increment
+        result = client.rpc(
+            "increment_field",
+            {
+                "p_table": table,
+                "p_id": record_id,
+                "p_field": field,
+                "p_amount": amount,
+            }
+        ).execute()
+        logger.debug(f"Incremented {field} by {amount} for record {record_id} in {table}")
+        return result.data if result.data else {}
+    except APIError as e:
+        logger.error(f"Supabase API error during increment in {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to increment field: {e.message}",
+            table=table,
+            operation="increment",
+            details={"record_id": record_id, "field": field, "amount": amount},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during increment in {table}: {e}")
+        raise SupabaseError(
+            f"Failed to increment field: {str(e)}",
+            table=table,
+            operation="increment",
+            details={"record_id": record_id, "field": field, "amount": amount},
+            original_error=e,
+        )
