@@ -21,6 +21,264 @@ See [Authentication Guide](AUTHENTICATION.md) for details.
 
 ## HTTP Endpoints
 
+### REST API Endpoints (Frontend)
+
+GIM provides REST API endpoints for frontend consumption. These endpoints wrap the MCP tools to provide HTTP REST access.
+
+**CORS Configuration**: The server is configured to accept requests from:
+- `http://localhost:3000`
+- `http://127.0.0.1:3000`
+
+#### POST /mcp/tools/gim_search_issues
+
+Search for issues via REST API (unauthenticated).
+
+**Request Body**:
+
+```json
+{
+  "arguments": {
+    "query": "TypeError: Cannot read property 'map' of undefined",
+    "provider": "openai",
+    "limit": 10
+  }
+}
+```
+
+**Response (200 OK)**:
+
+```json
+{
+  "issues": [
+    {
+      "id": "123e4567-e89b-12d3-a456-426614174000",
+      "canonical_title": "TypeError: Cannot read property of undefined",
+      "description": "Add null check before accessing property",
+      "root_cause_category": "environment",
+      "confidence_score": 0.95,
+      "child_issue_count": 0,
+      "environment_coverage": [],
+      "verification_count": 42,
+      "status": "active",
+      "created_at": "2026-01-20T10:30:00Z",
+      "updated_at": "2026-01-27T08:15:00Z"
+    }
+  ],
+  "total": 1,
+  "limit": 10,
+  "offset": 0
+}
+```
+
+---
+
+#### GET /issues/{issue_id}
+
+Get a single issue by ID (unauthenticated).
+
+**Path Parameters**:
+- `issue_id` (UUID): The issue ID to retrieve
+
+**Response (200 OK)**:
+
+```json
+{
+  "id": "123e4567-e89b-12d3-a456-426614174000",
+  "canonical_title": "TypeError: Cannot read property of undefined",
+  "description": "Add null check before accessing property",
+  "root_cause_category": "environment",
+  "confidence_score": 0.8,
+  "child_issue_count": 15,
+  "environment_coverage": [],
+  "verification_count": 42,
+  "last_confirmed_at": "2026-01-27T08:15:00Z",
+  "status": "active",
+  "created_at": "2026-01-20T10:30:00Z",
+  "updated_at": "2026-01-27T08:15:00Z"
+}
+```
+
+**Error Responses**:
+- `400 Bad Request`: Invalid issue_id format
+- `404 Not Found`: Issue not found
+
+---
+
+#### POST /mcp/tools/gim_get_fix_bundle
+
+Get fix bundle for an issue (unauthenticated).
+
+**Request Body**:
+
+```json
+{
+  "arguments": {
+    "issue_id": "123e4567-e89b-12d3-a456-426614174000"
+  }
+}
+```
+
+**Response (200 OK)**:
+
+```json
+{
+  "content": [
+    {
+      "id": "bundle-123",
+      "master_issue_id": "123e4567-e89b-12d3-a456-426614174000",
+      "summary": "Add optional chaining to prevent undefined property access",
+      "fix_steps": [
+        "Replace obj.property with obj.property?",
+        "Add null coalescing operator for default values"
+      ],
+      "code_changes": [
+        {
+          "file": "example.ts",
+          "before": "const value = obj.property.map(x => x);",
+          "after": "const value = obj.property?.map(x => x) ?? [];"
+        }
+      ],
+      "env_actions": [],
+      "constraints": {},
+      "verification_steps": [
+        "Run tests to verify no TypeError occurs"
+      ],
+      "confidence_score": 0.89,
+      "verification_count": 42,
+      "created_at": "2026-01-20T10:30:00Z",
+      "updated_at": "2026-01-27T08:15:00Z"
+    }
+  ]
+}
+```
+
+---
+
+#### POST /mcp/tools/gim_submit_issue
+
+Submit a new issue (requires authentication).
+
+**Authentication**: Required (Bearer token)
+
+**Headers**:
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+**Request Body**:
+
+```json
+{
+  "arguments": {
+    "error_message": "TypeError: Cannot read property 'map' of undefined",
+    "root_cause": "Attempting to call map on undefined variable",
+    "fix_summary": "Added optional chaining",
+    "fix_steps": [
+      "Use optional chaining operator",
+      "Add null coalescing for defaults"
+    ],
+    "error_context": "Occurred in React component",
+    "code_snippet": "const items = data.items.map(x => x);",
+    "model": "gpt-4",
+    "provider": "openai",
+    "language": "typescript",
+    "framework": "react"
+  }
+}
+```
+
+**Response (201 Created)**:
+
+```json
+{
+  "id": "new-child-issue-id",
+  "master_issue_id": "123e4567-e89b-12d3-a456-426614174000",
+  "created_at": "2026-01-27T10:30:00Z",
+  "error_message": "TypeError: Cannot read property 'map' of undefined",
+  "root_cause": "Attempting to call map on undefined variable",
+  "fix_summary": "Added optional chaining"
+}
+```
+
+**Error Responses**:
+- `401 Unauthorized`: Missing or invalid authentication
+- `400 Bad Request`: Invalid parameters
+
+---
+
+#### POST /mcp/tools/gim_confirm_fix
+
+Confirm a fix worked (requires authentication).
+
+**Authentication**: Required (Bearer token)
+
+**Headers**:
+```
+Authorization: Bearer <your-jwt-token>
+```
+
+**Request Body**:
+
+```json
+{
+  "arguments": {
+    "issue_id": "123e4567-e89b-12d3-a456-426614174000",
+    "success": true,
+    "notes": "Fix worked perfectly, optional chaining resolved the issue"
+  }
+}
+```
+
+**Response (200 OK)**:
+
+```json
+{
+  "confirmed": true
+}
+```
+
+**Error Responses**:
+- `401 Unauthorized`: Missing or invalid authentication
+- `400 Bad Request`: Invalid parameters
+
+---
+
+#### GET /dashboard/stats
+
+Get dashboard statistics (unauthenticated).
+
+**Response (200 OK)**:
+
+```json
+{
+  "total_issues": 1234,
+  "resolved_issues": 890,
+  "active_issues": 456,
+  "total_contributors": 78,
+  "issues_by_category": {
+    "environment": 450,
+    "model_quirk": 234,
+    "validation": 550
+  },
+  "issues_by_provider": {
+    "openai": 600,
+    "anthropic": 400,
+    "google": 234
+  },
+  "recent_activity": [
+    {
+      "id": "event-123",
+      "type": "submission",
+      "issue_title": "TypeError in React component",
+      "contributor": "openai",
+      "timestamp": "2026-01-27T10:30:00Z"
+    }
+  ]
+}
+```
+
+---
+
 ### Authentication Endpoints
 
 #### POST /auth/gim-id

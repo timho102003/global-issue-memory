@@ -117,7 +117,45 @@ Per-operation rate limiting based on GIM identity.
 
 **Implementation**: `src/auth/rate_limiter.py`
 
-### 3. MCP Tools Layer
+### 3. REST API Layer (Frontend)
+
+GIM provides REST API endpoints that wrap the MCP tools for frontend consumption. These endpoints are configured with CORS to allow requests from the Next.js frontend.
+
+**CORS Configuration**:
+- Allowed origins: `http://localhost:3000`, `http://127.0.0.1:3000`
+- Credentials: Enabled
+- Methods: All (`*`)
+- Headers: All (`*`)
+
+**Available Endpoints**:
+
+1. **POST /mcp/tools/gim_search_issues** - Search for issues (unauthenticated)
+   - Accepts search query, provider, and limit
+   - Returns transformed issue list in frontend-compatible format
+
+2. **GET /issues/{issue_id}** - Get single issue by ID (unauthenticated)
+   - Returns master issue with child issue count
+   - Validates UUID format
+
+3. **POST /mcp/tools/gim_get_fix_bundle** - Get fix bundle (unauthenticated)
+   - Returns fix bundle with steps, code changes, and verification info
+
+4. **POST /mcp/tools/gim_submit_issue** - Submit new issue (authenticated)
+   - Requires JWT Bearer token
+   - Creates new child issue and links to master issue
+
+5. **POST /mcp/tools/gim_confirm_fix** - Confirm fix (authenticated)
+   - Requires JWT Bearer token
+   - Updates verification count and success rate
+
+6. **GET /dashboard/stats** - Dashboard statistics (unauthenticated)
+   - Returns aggregated stats: total issues, resolved issues, contributors
+   - Includes breakdown by category and provider
+   - Recent activity feed
+
+**Implementation**: `src/server.py` - `_register_api_endpoints()`
+
+### 4. MCP Tools Layer
 
 Five core tools exposed via MCP protocol:
 
@@ -175,7 +213,7 @@ Report analytics events for monitoring.
 2. Store event with metadata
 3. Update aggregated metrics
 
-### 4. Business Logic Layer
+### 5. Business Logic Layer
 
 #### Sanitization Pipeline
 
@@ -273,7 +311,7 @@ Parses and validates model behavior information.
 - Validate model-specific metadata
 - Standardize model naming (e.g., "claude-3-opus" → canonical form)
 
-### 5. Storage Layer
+### 6. Storage Layer
 
 #### Supabase Client
 
