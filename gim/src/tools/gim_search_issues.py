@@ -4,9 +4,20 @@ from typing import Any, Dict, List, Optional
 
 from src.db.supabase_client import query_records, insert_record
 from src.db.qdrant_client import search_similar_issues
+from src.exceptions import (
+    GIMError,
+    SupabaseError,
+    QdrantError,
+    EmbeddingError,
+    ValidationError,
+)
+from src.logging_config import get_logger, set_request_context
 from src.services.embedding_service import generate_embedding
 from src.services.sanitization.pipeline import quick_sanitize
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
+
+
+logger = get_logger("tools.search_issues")
 
 
 search_issues_tool = ToolDefinition(
@@ -64,6 +75,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
     Returns:
         List: MCP response content.
     """
+    # Set request context for tracing
+    request_id = set_request_context()
+    logger.info(f"Processing search request (request_id={request_id})")
+
     try:
         # Extract arguments
         error_message = arguments.get("error_message", "")
@@ -74,13 +89,21 @@ async def execute(arguments: Dict[str, Any]) -> List:
         limit = arguments.get("limit", 5)
 
         if not error_message:
-            return create_error_response("error_message is required")
+            raise ValidationError("error_message is required", field="error_message")
 
         # Sanitize the search query
         sanitized_query, warnings = quick_sanitize(error_message)
 
         # Generate embedding for search
-        query_vector = await generate_embedding(sanitized_query)
+        logger.debug("Generating embedding for search query")
+        try:
+            query_vector = await generate_embedding(sanitized_query)
+        except Exception as e:
+            logger.error(f"Embedding generation error: {e}")
+            raise EmbeddingError(
+                f"Failed to generate embedding: {str(e)}",
+                original_error=e,
+            )
 
         # Build filters
         filters: Optional[Dict[str, Any]] = None
@@ -106,6 +129,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 provider=provider,
             )
 
+            logger.info("No matching issues found")
             return create_text_response({
                 "success": True,
                 "message": "No matching issues found in GIM",
@@ -127,7 +151,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 # Also fetch fix bundle
                 fix_bundles = await query_records(
                     table="fix_bundles",
-                    filters={"issue_id": issue_id},
+                    filters={"master_issue_id": issue_id},
                     order_by="confidence_score",
                     ascending=False,
                     limit=1,
@@ -155,6 +179,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             provider=provider,
         )
 
+        logger.info(f"Found {len(issues)} matching issues")
         return create_text_response({
             "success": True,
             "message": f"Found {len(issues)} matching issue(s)",
@@ -174,8 +199,29 @@ async def execute(arguments: Dict[str, Any]) -> List:
             "sanitization_warnings": warnings,
         })
 
+    except ValidationError as e:
+        logger.warning(f"Validation error: {e.message}")
+        return create_error_response(f"Validation error: {e.message}")
+
+    except EmbeddingError as e:
+        logger.error(f"Embedding error: {e.message}")
+        return create_error_response(f"Embedding error: {e.message}")
+
+    except SupabaseError as e:
+        logger.error(f"Database error: {e.message}")
+        return create_error_response(f"Database error: {e.message}")
+
+    except QdrantError as e:
+        logger.error(f"Vector DB error: {e.message}")
+        return create_error_response(f"Search error: {e.message}")
+
+    except GIMError as e:
+        logger.error(f"GIM error: {e.message}")
+        return create_error_response(f"Error: {e.message}")
+
     except Exception as e:
-        return create_error_response(f"Search failed: {str(e)}")
+        logger.exception("Unexpected error during search")
+        return create_error_response("An unexpected error occurred during search. Please try again later.")
 
 
 async def _log_search_event(
@@ -185,6 +231,8 @@ async def _log_search_event(
     provider: Optional[str] = None,
 ) -> None:
     """Log a search event for analytics.
+
+    This is a non-critical operation that should not fail the main search.
 
     Args:
         query: Sanitized search query.
@@ -205,9 +253,9 @@ async def _log_search_event(
                 },
             },
         )
-    except Exception:
+    except Exception as e:
         # Don't fail the search if logging fails
-        pass
+        logger.warning(f"Failed to log search event: {e}")
 
 
 # Export for server registration

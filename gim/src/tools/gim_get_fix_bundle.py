@@ -3,7 +3,12 @@
 from typing import Any, Dict, List, Optional
 
 from src.db.supabase_client import get_record, query_records, insert_record
+from src.exceptions import GIMError, SupabaseError, ValidationError
+from src.logging_config import get_logger, set_request_context
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
+
+
+logger = get_logger("tools.get_fix_bundle")
 
 
 get_fix_bundle_tool = ToolDefinition(
@@ -20,9 +25,10 @@ and verification instructions.""",
                 "type": "string",
                 "description": "The issue ID from gim_search_issues results",
             },
-            "session_id": {
-                "type": "string",
-                "description": "Optional session ID for tracking",
+            "include_related": {
+                "type": "boolean",
+                "description": "Include related child issues",
+                "default": True,
             },
         },
         "required": ["issue_id"],
@@ -43,27 +49,34 @@ async def execute(arguments: Dict[str, Any]) -> List:
     Returns:
         List: MCP response content.
     """
+    # Set request context for tracing
+    request_id = set_request_context()
+    logger.info(f"Processing fix bundle request (request_id={request_id})")
+
     try:
         issue_id = arguments.get("issue_id")
-        session_id = arguments.get("session_id")
+        include_related = arguments.get("include_related", True)
 
         if not issue_id:
-            return create_error_response("issue_id is required")
+            raise ValidationError("issue_id is required", field="issue_id")
 
         # Fetch issue details
+        logger.debug(f"Fetching issue {issue_id}")
         issue = await get_record(table="master_issues", record_id=issue_id)
         if not issue:
+            logger.warning(f"Issue not found: {issue_id}")
             return create_error_response(f"Issue not found: {issue_id}")
 
         # Fetch fix bundle(s)
         fix_bundles = await query_records(
             table="fix_bundles",
-            filters={"issue_id": issue_id},
+            filters={"master_issue_id": issue_id},
             order_by="confidence_score",
             ascending=False,
         )
 
         if not fix_bundles:
+            logger.info(f"No fix bundle available for issue {issue_id}")
             return create_text_response({
                 "success": True,
                 "issue_id": issue_id,
@@ -78,9 +91,9 @@ async def execute(arguments: Dict[str, Any]) -> List:
         await _log_retrieval_event(
             issue_id=issue_id,
             fix_bundle_id=best_fix.get("id"),
-            session_id=session_id,
         )
 
+        logger.info(f"Retrieved fix bundle {best_fix.get('id')} for issue {issue_id}")
         return create_text_response({
             "success": True,
             "issue_id": issue_id,
@@ -101,21 +114,34 @@ async def execute(arguments: Dict[str, Any]) -> List:
             "alternative_fixes_count": len(fix_bundles) - 1,
         })
 
+    except ValidationError as e:
+        logger.warning(f"Validation error: {e.message}")
+        return create_error_response(f"Validation error: {e.message}")
+
+    except SupabaseError as e:
+        logger.error(f"Database error: {e.message}")
+        return create_error_response(f"Database error: {e.message}")
+
+    except GIMError as e:
+        logger.error(f"GIM error: {e.message}")
+        return create_error_response(f"Error: {e.message}")
+
     except Exception as e:
-        return create_error_response(f"Failed to retrieve fix bundle: {str(e)}")
+        logger.exception("Unexpected error during fix bundle retrieval")
+        return create_error_response("An unexpected error occurred. Please try again later.")
 
 
 async def _log_retrieval_event(
     issue_id: str,
     fix_bundle_id: Optional[str] = None,
-    session_id: Optional[str] = None,
 ) -> None:
     """Log a fix bundle retrieval event.
+
+    This is a non-critical operation that should not fail the main retrieval.
 
     Args:
         issue_id: Issue ID.
         fix_bundle_id: Fix bundle ID.
-        session_id: Session ID.
     """
     try:
         await insert_record(
@@ -123,14 +149,13 @@ async def _log_retrieval_event(
             data={
                 "event_type": "fix_retrieved",
                 "issue_id": issue_id,
-                "session_id": session_id,
                 "metadata": {
                     "fix_bundle_id": fix_bundle_id,
                 },
             },
         )
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"Failed to log retrieval event: {e}")
 
 
 # Export for server registration

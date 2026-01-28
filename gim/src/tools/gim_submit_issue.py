@@ -1,15 +1,30 @@
 """GIM Submit Issue Tool - Submit a resolved issue to GIM."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
 from src.config import get_settings
 from src.db.supabase_client import insert_record, query_records
 from src.db.qdrant_client import upsert_issue_vectors, search_similar_issues
+from src.exceptions import (
+    GIMError,
+    SupabaseError,
+    QdrantError,
+    EmbeddingError,
+    SanitizationError,
+    ValidationError,
+)
+from src.logging_config import get_logger, set_request_context
 from src.services.embedding_service import generate_issue_embeddings
 from src.services.sanitization.pipeline import run_sanitization_pipeline, quick_sanitize
+from src.services.contribution_classifier import classify_contribution_type
+from src.services.environment_extractor import extract_environment_info
+from src.services.model_parser import parse_model_info
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
+
+
+logger = get_logger("tools.submit_issue")
 
 
 submit_issue_tool = ToolDefinition(
@@ -111,6 +126,32 @@ The tool will:
                 "type": "string",
                 "description": "Framework being used",
             },
+            # New fields for richer child issue metadata
+            "language_version": {
+                "type": "string",
+                "description": "Language version (e.g., '3.11', '18.2')",
+            },
+            "framework_version": {
+                "type": "string",
+                "description": "Framework version (e.g., '0.100.0')",
+            },
+            "os": {
+                "type": "string",
+                "description": "Operating system (e.g., 'linux', 'macos', 'windows')",
+            },
+            "model_behavior_notes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Notes about model-specific behavior or quirks",
+            },
+            "validation_success": {
+                "type": "boolean",
+                "description": "Whether the fix was validated successfully",
+            },
+            "validation_notes": {
+                "type": "string",
+                "description": "Notes about the validation process",
+            },
         },
         "required": ["error_message", "root_cause", "fix_summary", "fix_steps"],
     },
@@ -130,6 +171,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
     Returns:
         List: MCP response content.
     """
+    # Set request context for tracing
+    request_id = set_request_context()
+    logger.info(f"Processing issue submission (request_id={request_id})")
+
     try:
         # Extract required arguments
         error_message = arguments.get("error_message", "")
@@ -146,23 +191,40 @@ async def execute(arguments: Dict[str, Any]) -> List:
         language = arguments.get("language")
         framework = arguments.get("framework")
 
+        # New fields
+        language_version = arguments.get("language_version")
+        framework_version = arguments.get("framework_version")
+        os_info = arguments.get("os")
+        model_behavior_notes = arguments.get("model_behavior_notes", [])
+        validation_success = arguments.get("validation_success")
+        validation_notes = arguments.get("validation_notes")
+
         # Validate required fields
         if not error_message:
-            return create_error_response("error_message is required")
+            raise ValidationError("error_message is required", field="error_message")
         if not root_cause:
-            return create_error_response("root_cause is required")
+            raise ValidationError("root_cause is required", field="root_cause")
         if not fix_summary:
-            return create_error_response("fix_summary is required")
+            raise ValidationError("fix_summary is required", field="fix_summary")
         if not fix_steps:
-            return create_error_response("fix_steps is required")
+            raise ValidationError("fix_steps is required", field="fix_steps")
 
         # Run sanitization pipeline
-        sanitization_result = await run_sanitization_pipeline(
-            error_message=error_message,
-            error_context=error_context,
-            code_snippet=code_snippet,
-            use_llm=True,
-        )
+        logger.debug("Running sanitization pipeline")
+        try:
+            sanitization_result = await run_sanitization_pipeline(
+                error_message=error_message,
+                error_context=error_context,
+                code_snippet=code_snippet,
+                use_llm=True,
+            )
+        except Exception as e:
+            logger.warning(f"Sanitization pipeline error: {e}")
+            raise SanitizationError(
+                f"Failed to sanitize content: {str(e)}",
+                stage="pipeline",
+                original_error=e,
+            )
 
         # Also sanitize root cause and fix summary
         sanitized_root_cause, _ = quick_sanitize(root_cause)
@@ -170,11 +232,19 @@ async def execute(arguments: Dict[str, Any]) -> List:
         sanitized_fix_steps = [quick_sanitize(step)[0] for step in fix_steps]
 
         # Generate embeddings for similarity search
-        embeddings = await generate_issue_embeddings(
-            error_message=sanitization_result.sanitized_error,
-            root_cause=sanitized_root_cause,
-            fix_summary=sanitized_fix_summary,
-        )
+        logger.debug("Generating embeddings")
+        try:
+            embeddings = await generate_issue_embeddings(
+                error_message=sanitization_result.sanitized_error,
+                root_cause=sanitized_root_cause,
+                fix_summary=sanitized_fix_summary,
+            )
+        except Exception as e:
+            logger.error(f"Embedding generation error: {e}")
+            raise EmbeddingError(
+                f"Failed to generate embeddings: {str(e)}",
+                original_error=e,
+            )
 
         # Check for similar existing issues
         settings = get_settings()
@@ -198,7 +268,34 @@ async def execute(arguments: Dict[str, Any]) -> List:
         issue_id = str(uuid.uuid4())
 
         if is_child_issue and parent_issue_id:
-            # Create child issue
+            # Classify contribution type
+            contribution_type = classify_contribution_type(
+                error_message=sanitization_result.sanitized_error,
+                root_cause=sanitized_root_cause,
+                fix_steps=sanitized_fix_steps,
+                environment_actions=environment_actions,
+                model_behavior_notes=model_behavior_notes,
+                validation_success=validation_success,
+            )
+
+            # Extract environment info
+            environment_info = extract_environment_info(
+                language=language,
+                framework=framework,
+                error_context=error_context,
+                language_version=language_version,
+                framework_version=framework_version,
+                os=os_info,
+            )
+
+            # Parse model info
+            model_provider, model_name, model_version = parse_model_info(
+                model=model,
+                provider=provider,
+            )
+
+            # Create child issue with full metadata
+            logger.info(f"Creating child issue linked to {parent_issue_id}")
             await insert_record(
                 table="child_issues",
                 data={
@@ -208,10 +305,20 @@ async def execute(arguments: Dict[str, Any]) -> List:
                     "original_context": sanitization_result.sanitized_context,
                     "code_snippet": sanitization_result.sanitized_mre,
                     "model": model,
-                    "provider": provider,
+                    "provider": model_provider,
                     "language": language,
                     "framework": framework,
-                    "submitted_at": datetime.utcnow().isoformat(),
+                    "submitted_at": datetime.now(timezone.utc).isoformat(),
+                    # Rich metadata fields
+                    "metadata": {
+                        "contribution_type": contribution_type.value,
+                        "environment": environment_info,
+                        "model_name": model_name,
+                        "model_version": model_version,
+                        "model_behavior_notes": model_behavior_notes,
+                        "validation_success": validation_success,
+                        "validation_notes": validation_notes,
+                    },
                 },
             )
 
@@ -223,7 +330,8 @@ async def execute(arguments: Dict[str, Any]) -> List:
             # Create master issue
             root_cause_category = _classify_root_cause(sanitized_root_cause)
 
-            master_issue = await insert_record(
+            logger.info(f"Creating master issue with category {root_cause_category}")
+            await insert_record(
                 table="master_issues",
                 data={
                     "id": issue_id,
@@ -236,8 +344,8 @@ async def execute(arguments: Dict[str, Any]) -> List:
                     "language": language,
                     "framework": framework,
                     "verification_count": 1,  # Initial verification
-                    "created_at": datetime.utcnow().isoformat(),
-                    "last_verified_at": datetime.utcnow().isoformat(),
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "last_verified_at": datetime.now(timezone.utc).isoformat(),
                 },
             )
 
@@ -261,6 +369,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
 
         # Create fix bundle
         fix_bundle_id = str(uuid.uuid4())
+        logger.debug(f"Creating fix bundle {fix_bundle_id}")
         await insert_record(
             table="fix_bundles",
             data={
@@ -273,12 +382,12 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 "verification_steps": verification_steps,
                 "confidence_score": sanitization_result.confidence_score,
                 "verification_count": 1,
-                "created_at": datetime.utcnow().isoformat(),
-                "last_confirmed_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
             },
         )
 
-        # Log submission event
+        # Log submission event (non-critical, don't fail on error)
         await _log_submission_event(
             issue_id=result_id,
             is_child=is_child_issue,
@@ -286,6 +395,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             provider=provider,
         )
 
+        logger.info(f"Successfully submitted {result_type} {result_id}")
         return create_text_response({
             "success": True,
             "message": f"Issue submitted successfully as {result_type}",
@@ -300,8 +410,33 @@ async def execute(arguments: Dict[str, Any]) -> List:
             },
         })
 
+    except ValidationError as e:
+        logger.warning(f"Validation error: {e.message}")
+        return create_error_response(f"Validation error: {e.message}")
+
+    except SanitizationError as e:
+        logger.warning(f"Sanitization error: {e.message}")
+        return create_error_response(f"Sanitization error: {e.message}")
+
+    except EmbeddingError as e:
+        logger.error(f"Embedding error: {e.message}")
+        return create_error_response(f"Embedding error: {e.message}")
+
+    except SupabaseError as e:
+        logger.error(f"Database error: {e.message}")
+        return create_error_response(f"Database error: {e.message}")
+
+    except QdrantError as e:
+        logger.error(f"Vector DB error: {e.message}")
+        return create_error_response(f"Vector storage error: {e.message}")
+
+    except GIMError as e:
+        logger.error(f"GIM error: {e.message}")
+        return create_error_response(f"Error: {e.message}")
+
     except Exception as e:
-        return create_error_response(f"Failed to submit issue: {str(e)}")
+        logger.exception("Unexpected error during submission")
+        return create_error_response("An unexpected error occurred. Please try again later.")
 
 
 def _classify_root_cause(root_cause: str) -> str:
@@ -344,6 +479,8 @@ async def _log_submission_event(
 ) -> None:
     """Log an issue submission event.
 
+    This is a non-critical operation that should not fail the main submission.
+
     Args:
         issue_id: Issue ID.
         is_child: Whether this is a child issue.
@@ -363,8 +500,9 @@ async def _log_submission_event(
                 },
             },
         )
-    except Exception:
-        pass
+    except Exception as e:
+        # Log but don't fail the main operation
+        logger.warning(f"Failed to log submission event: {e}")
 
 
 # Export for server registration
