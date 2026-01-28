@@ -2,9 +2,9 @@
 name = "gim"
 version = "0.1.0"
 description = "Global Issue Memory - Privacy-preserving MCP server for AI coding issue intelligence"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 dependencies = [
-    "mcp>=1.0.0",
+    "fastmcp>=2.0.0,<3",
     "pydantic>=2.7.0",
     "pydantic-settings>=2.0.0",
     "supabase>=2.0.0",
@@ -12,6 +12,8 @@ dependencies = [
     "google-genai>=1.0.0",
     "httpx>=0.25.0",
     "python-dotenv>=1.0.0",
+    "PyJWT>=2.8.0",
+    "Jinja2>=3.1.0",
 ]
 
 [project.optional-dependencies]
@@ -28,6 +30,9 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: marks tests as integration tests (requires API keys)",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

@@ -1,7 +1,9 @@
 """Configuration settings for GIM MCP Server."""
 
-from pydantic_settings import BaseSettings
+from typing import Literal, Optional
+
 from pydantic import Field
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
@@ -16,6 +18,14 @@ class Settings(BaseSettings):
         embedding_model: Google embedding model name.
         llm_model: Google LLM model name for processing.
         log_level: Logging level.
+        jwt_secret_key: Secret key for signing JWT tokens (min 32 chars).
+        auth_issuer: JWT token issuer identifier.
+        auth_audience: JWT token audience identifier.
+        access_token_ttl_hours: JWT access token TTL in hours.
+        transport_mode: Server transport mode (stdio, http, or dual).
+        http_host: Host to bind HTTP server to.
+        http_port: Port for HTTP server.
+        default_daily_search_limit: Default daily limit for search operations.
     """
 
     # Supabase
@@ -29,8 +39,12 @@ class Settings(BaseSettings):
     # Google AI
     google_api_key: str = Field(..., description="Google AI API key")
     embedding_model: str = Field(
-        default="text-embedding-004",
+        default="gemini-embedding-001",
         description="Google embedding model name"
+    )
+    embedding_dimensions: int = Field(
+        default=3072,
+        description="Embedding vector dimensions (3072 for gemini-embedding-001)"
     )
     llm_model: str = Field(
         default="gemini-2.5-flash-preview-05-20",
@@ -39,6 +53,74 @@ class Settings(BaseSettings):
 
     # Server
     log_level: str = Field(default="INFO", description="Logging level")
+
+    # Authentication
+    jwt_secret_key: str = Field(
+        ...,
+        min_length=32,
+        description="Secret key for signing JWT tokens (min 32 characters)"
+    )
+    auth_issuer: str = Field(
+        default="gim-mcp",
+        description="JWT token issuer identifier"
+    )
+    auth_audience: str = Field(
+        default="gim-clients",
+        description="JWT token audience identifier"
+    )
+    access_token_ttl_hours: int = Field(
+        default=1,
+        ge=1,
+        le=24,
+        description="JWT access token TTL in hours"
+    )
+
+    # Transport
+    transport_mode: Literal["stdio", "http", "dual"] = Field(
+        default="stdio",
+        description="Server transport mode"
+    )
+    http_host: str = Field(
+        default="0.0.0.0",
+        description="Host to bind HTTP server to"
+    )
+    http_port: int = Field(
+        default=8000,
+        ge=1,
+        le=65535,
+        description="Port for HTTP server"
+    )
+
+    # Rate limiting
+    default_daily_search_limit: int = Field(
+        default=100,
+        ge=1,
+        description="Default daily limit for search and get_fix_bundle operations"
+    )
+
+    # OAuth 2.1 settings
+    oauth_issuer_url: str = Field(
+        default="http://localhost:8000",
+        description="OAuth authorization server issuer URL"
+    )
+    oauth_authorization_code_ttl_seconds: int = Field(
+        default=600,
+        ge=60,
+        le=3600,
+        description="Authorization code TTL in seconds (10 minutes default)"
+    )
+    oauth_access_token_ttl_seconds: int = Field(
+        default=3600,
+        ge=300,
+        le=86400,
+        description="OAuth access token TTL in seconds (1 hour default)"
+    )
+    oauth_refresh_token_ttl_days: int = Field(
+        default=30,
+        ge=1,
+        le=365,
+        description="Refresh token TTL in days (30 days default)"
+    )
 
     # Sanitization
     sanitization_confidence_threshold: float = Field(
@@ -63,10 +145,16 @@ class Settings(BaseSettings):
     }
 
 
+_settings: Optional[Settings] = None
+
+
 def get_settings() -> Settings:
-    """Get application settings instance.
+    """Get application settings instance (cached).
 
     Returns:
         Settings: Application settings loaded from environment.
     """
-    return Settings()
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
