@@ -237,12 +237,40 @@ See [API Reference](docs/API.md) for detailed tool schemas.
 
 ## Technology Stack
 
+### Backend
 - **MCP Protocol** - Anthropic Model Context Protocol
 - **Python 3.12+** - Core language
 - **Pydantic** - Data validation and settings
 - **Supabase** - PostgreSQL database
 - **Qdrant** - Vector database for embeddings
 - **Google Gemini** - Embeddings (text-embedding-004) & LLM sanitization (gemini-2.5-flash-preview)
+
+### Frontend
+- **Next.js 15** - React framework with App Router
+- **TypeScript** - Type-safe development
+- **Tailwind CSS v4** - Utility-first styling
+- **Zustand** - Lightweight state management
+- **TanStack React Query** - Server state & data fetching
+
+## Frontend Application
+
+A modern web dashboard for browsing, searching, and contributing to the GIM knowledge base.
+
+**Running the Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Visit `http://localhost:3000` to access the application.
+
+**Screens:**
+- **Landing** - Project overview and getting started
+- **Dashboard** - Search and browse issues, view analytics
+- **Issues** - Detailed issue view with fix bundles
+- **Profile** - User contributions and settings
 
 ## Environment Variables
 
