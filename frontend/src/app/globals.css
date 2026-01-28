@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  /* Color Variables from GIM.pen */
+  --color-background: #F2F3F0;
+  --color-foreground: #111111;
+  --color-card: #FFFFFF;
+  --color-card-foreground: #111111;
+  --color-primary: #FF8400;
+  --color-primary-foreground: #111111;
+  --color-secondary: #E7E8E5;
+  --color-secondary-foreground: #111111;
+  --color-muted: #F2F3F0;
+  --color-muted-foreground: #666666;
+  --color-accent: #F2F3F0;
+  --color-accent-foreground: #111111;
+  --color-destructive: #D93C15;
+  --color-border: #CBCCC9;
+  --color-input: #CBCCC9;
+  --color-ring: #666666;
+
+  /* Brand Colors */
+  --color-accent-warm: #D4A853;
+  --color-accent-gold: #B8860B;
+  --color-accent-secondary: #8B7355;
+
+  /* Background Gradients */
+  --color-bg-gradient-start: #FDF8E8;
+  --color-bg-gradient-end: #E8E4D9;
+  --color-bg-card: #FFFFFF;
+  --color-bg-muted: #F7F5F0;
+  --color-bg-tertiary: #F5F0E6;
+  --color-bg-highlight: #FEF9E7;
+
+  /* Status Colors */
+  --color-success: #DFE6E1;
+  --color-success-foreground: #004D1A;
+  --color-warning: #E9E3D8;
+  --color-warning-foreground: #804200;
+  --color-error: #E5DCDA;
+  --color-error-foreground: #8C1C00;
+  --color-info: #DFDFE6;
+  --color-info-foreground: #000066;
+
+  /* Category Colors */
+  --color-cat-environment: #10B981;
+  --color-cat-model: #8B5CF6;
+  --color-cat-api: #06B6D4;
+  --color-cat-codegen: #F59E0B;
+  --color-cat-framework: #EC4899;
+
+  /* Accent Colors */
+  --color-accent-green: #22C55E;
+  --color-accent-red: #EF4444;
+  --color-accent-amber: #F59E0B;
+  --color-accent-violet: #7C3AED;
+  --color-accent-cyan: #00FFE0;
+
+  /* Border Colors */
+  --color-border-light: #E8E6E1;
+  --color-border-medium: #D4D2CD;
+  --color-border-soft: #F0EDE6;
+
+  /* Text Colors */
+  --color-text-primary: #2D2A26;
+  --color-text-secondary: #6B6660;
+  --color-text-muted: #9C9791;
+
+  /* Font Families */
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --font-sans: "Geist", ui-sans-serif, system-ui, sans-serif;
+
+  /* Border Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-pill: 999px;
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+
+  body {
+    background: linear-gradient(180deg, var(--color-bg-gradient-start) 0%, var(--color-bg-gradient-end) 100%);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+  }
+}
