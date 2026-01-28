@@ -22,8 +22,14 @@ _client: Optional[QdrantClient] = None
 # Collection name for GIM issues
 COLLECTION_NAME = "gim_issues"
 
-# Vector dimensions for text-embedding-004
-VECTOR_DIM = 768
+
+def _get_vector_dim() -> int:
+    """Get vector dimensions from settings.
+
+    Returns:
+        int: Vector dimensions for embedding model.
+    """
+    return get_settings().embedding_dimensions
 
 
 def get_qdrant_client() -> QdrantClient:
@@ -45,6 +51,7 @@ def get_qdrant_client() -> QdrantClient:
 async def ensure_collection_exists() -> None:
     """Ensure the GIM issues collection exists with proper configuration."""
     client = get_qdrant_client()
+    vector_dim = _get_vector_dim()
 
     # Check if collection exists
     collections = client.get_collections().collections
@@ -56,15 +63,15 @@ async def ensure_collection_exists() -> None:
             collection_name=COLLECTION_NAME,
             vectors_config={
                 "error_signature": VectorParams(
-                    size=VECTOR_DIM,
+                    size=vector_dim,
                     distance=Distance.COSINE,
                 ),
                 "root_cause": VectorParams(
-                    size=VECTOR_DIM,
+                    size=vector_dim,
                     distance=Distance.COSINE,
                 ),
                 "fix_summary": VectorParams(
-                    size=VECTOR_DIM,
+                    size=vector_dim,
                     distance=Distance.COSINE,
                 ),
             },
@@ -158,9 +165,11 @@ async def search_similar_issues(
             )
         query_filter = Filter(must=conditions)
 
-    results = client.search(
+    # Use query_points with 'using' parameter for named vectors
+    response = client.query_points(
         collection_name=COLLECTION_NAME,
-        query_vector=(vector_name, query_vector),
+        query=query_vector,
+        using=vector_name,
         limit=limit,
         score_threshold=score_threshold,
         query_filter=query_filter,
@@ -169,11 +178,11 @@ async def search_similar_issues(
 
     return [
         {
-            "id": str(result.id),
-            "score": result.score,
-            "payload": result.payload,
+            "id": str(point.id),
+            "score": point.score,
+            "payload": point.payload,
         }
-        for result in results
+        for point in response.points
     ]
 
 

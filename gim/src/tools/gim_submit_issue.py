@@ -265,7 +265,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             table="fix_bundles",
             data={
                 "id": fix_bundle_id,
-                "issue_id": issue_id if not is_child_issue else parent_issue_id,
+                "master_issue_id": issue_id if not is_child_issue else parent_issue_id,
                 "summary": sanitized_fix_summary,
                 "fix_steps": sanitized_fix_steps,
                 "code_changes": code_changes,

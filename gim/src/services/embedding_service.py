@@ -1,4 +1,4 @@
-"""Embedding service using Google Gemini text-embedding-004."""
+"""Embedding service using Google Gemini embedding models."""
 
 from typing import List, Optional
 
@@ -23,6 +23,15 @@ def _get_client() -> genai.Client:
     return _client
 
 
+def _get_embedding_dimensions() -> int:
+    """Get embedding dimensions from settings.
+
+    Returns:
+        int: Embedding vector dimensions.
+    """
+    return get_settings().embedding_dimensions
+
+
 async def generate_embedding(text: str) -> List[float]:
     """Generate embedding vector for text using Gemini.
 
@@ -30,11 +39,13 @@ async def generate_embedding(text: str) -> List[float]:
         text: Text to embed.
 
     Returns:
-        List[float]: Embedding vector (768 dimensions for text-embedding-004).
+        List[float]: Embedding vector (dimensions from config).
     """
+    dimensions = _get_embedding_dimensions()
+
     if not text or not text.strip():
         # Return zero vector for empty text
-        return [0.0] * 768
+        return [0.0] * dimensions
 
     client = _get_client()
     settings = get_settings()
@@ -61,12 +72,13 @@ async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
 
     client = _get_client()
     settings = get_settings()
+    dimensions = _get_embedding_dimensions()
 
     # Filter out empty texts, keeping track of indices
     non_empty = [(i, t) for i, t in enumerate(texts) if t and t.strip()]
 
     if not non_empty:
-        return [[0.0] * 768 for _ in texts]
+        return [[0.0] * dimensions for _ in texts]
 
     # Embed non-empty texts
     response = client.models.embed_content(
@@ -75,7 +87,7 @@ async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     )
 
     # Build result list with zero vectors for empty texts
-    results: List[List[float]] = [[0.0] * 768 for _ in texts]
+    results: List[List[float]] = [[0.0] * dimensions for _ in texts]
     for (original_idx, _), embedding in zip(non_empty, response.embeddings):
         results[original_idx] = list(embedding.values)
 
