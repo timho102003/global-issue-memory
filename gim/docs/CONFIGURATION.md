@@ -166,7 +166,32 @@ Model used for sanitization and canonicalization.
 **Default**: `INFO`
 **Options**: `DEBUG`, `INFO`, `WARNING`, `ERROR`, `CRITICAL`
 
-Logging verbosity. Use `DEBUG` for development, `INFO` or `WARNING` for production.
+Logging verbosity. Controls the centralized logging system.
+
+**Log Levels Explained**:
+- `DEBUG`: Detailed operation logs with timing, request IDs, and argument/result logging (development only)
+- `INFO`: Normal operations, startup/shutdown messages
+- `WARNING`: Recoverable issues, deprecation warnings
+- `ERROR`: Serious problems that prevent operations from completing
+- `CRITICAL`: System-level failures
+
+**Recommendations**:
+- Development: `DEBUG` (see all operation details)
+- Staging: `INFO` (normal verbosity)
+- Production: `WARNING` or `INFO` (reduce noise)
+
+**Logging Features**:
+- Request context tracking with unique request IDs
+- Automatic operation timing via `@log_operation` decorator
+- Structured log format: `timestamp | level | logger | [request_id] | message`
+- Separate logger namespace (`gim.*`) for organized log management
+
+**Example Log Output**:
+```
+2026-01-27 10:30:15 | DEBUG    | gim.services.search | [a1b2c3d4] | Starting operation search_issues (op_id=ef456789)
+2026-01-27 10:30:15 | DEBUG    | gim.services.search | [a1b2c3d4] | Completed operation search_issues (op_id=ef456789) in 45.23ms
+2026-01-27 10:30:16 | ERROR    | gim.db.qdrant      | [a1b2c3d4] | Failed operation vector_search (op_id=gh789abc) after 102.45ms | error=QdrantError: Connection timeout
+```
 
 ---
 

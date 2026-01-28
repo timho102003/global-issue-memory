@@ -224,6 +224,55 @@ Identifies and merges duplicate issues.
 
 **Threshold Configuration**: `SIMILARITY_MERGE_THRESHOLD=0.85`
 
+#### Contribution Classification
+
+Classifies child issue contributions to master issues.
+
+**Service**: `src/services/contribution_classifier.py`
+
+**Classification Types**:
+- `VALIDATION`: Confirms fix works (explicit validation provided)
+- `ENVIRONMENT`: Environment-specific solution (package versions, OS, config)
+- `MODEL_QUIRK`: Model-specific behavior or quirk
+- `SYMPTOM`: Default - new error variation or symptom
+
+**Classification Priority**:
+1. Explicit validation (`validation_success` field)
+2. Environment actions provided
+3. Environment keywords detected
+4. Model behavior notes provided
+5. Model keywords detected
+6. Default to SYMPTOM
+
+**Environment Keywords**: install, package, dependency, version, config, docker, etc.
+
+**Model Keywords**: model, ai, llm, prompt, hallucin, token, tool call, etc.
+
+#### Environment Extraction
+
+Extracts environment details from submission context.
+
+**Service**: `src/services/environment_extractor.py`
+
+**Extracted Information**:
+- Language version (e.g., Python 3.12.1, Node.js 20.10.0)
+- Framework version (e.g., FastAPI 0.104.1, React 18.2.0)
+- Operating system (e.g., macOS 14.5, Ubuntu 22.04)
+
+**Implementation**: Regex-based extraction from error messages and environment metadata
+
+#### Model Behavior Parsing
+
+Parses and validates model behavior information.
+
+**Service**: `src/services/model_parser.py`
+
+**Features**:
+- Extract model name and provider from identifiers
+- Parse model behavior notes (quirks, patterns)
+- Validate model-specific metadata
+- Standardize model naming (e.g., "claude-3-opus" → canonical form)
+
 ### 5. Storage Layer
 
 #### Supabase Client
@@ -423,10 +472,31 @@ results = qdrant_client.search(
 
 ## Error Handling
 
+### Custom Exception Hierarchy
+
+GIM uses a custom exception hierarchy for structured error handling:
+
+```
+GIMError (base)
+├── SupabaseError (database operations)
+├── QdrantError (vector operations)
+├── EmbeddingError (embedding generation)
+├── SanitizationError (content sanitization)
+└── ValidationError (input validation)
+```
+
+**Key Features**:
+- Structured error details with context (table, operation, field, etc.)
+- Original exception chaining for debugging
+- Consistent error formatting across all components
+- Security-hardened: Generic messages for unexpected errors to prevent information leakage
+
+**Implementation**: `src/exceptions.py`
+
 ### Error Categories
 
 1. **Client Errors (4xx)**:
-   - 400 Bad Request: Invalid parameters
+   - 400 Bad Request: Invalid parameters (ValidationError)
    - 401 Unauthorized: Missing/invalid auth
    - 403 Forbidden: Insufficient permissions
    - 404 Not Found: Resource not found
@@ -434,14 +504,18 @@ results = qdrant_client.search(
 
 2. **Server Errors (5xx)**:
    - 500 Internal Server Error: Unexpected error
-   - 503 Service Unavailable: External service down
+   - 503 Service Unavailable: External service down (SupabaseError, QdrantError, EmbeddingError)
 
 ### Error Response Format
 
 ```json
 {
   "error": "error_code",
-  "error_description": "Human-readable description"
+  "error_description": "Human-readable description",
+  "details": {
+    "operation": "operation_name",
+    "context": "additional_context"
+  }
 }
 ```
 
@@ -451,6 +525,14 @@ results = qdrant_client.search(
 - 429 (Rate Limit): Wait until `X-RateLimit-Reset`
 - 500 (Server Error): Exponential backoff (1s, 2s, 4s)
 - 503 (Service Unavailable): Retry after `Retry-After` header
+
+### Error Handling Best Practices
+
+1. **Always use specific exceptions** in application code
+2. **Include context** via the `details` parameter
+3. **Chain exceptions** by passing `original_error`
+4. **Log at appropriate levels**: ERROR for failures, WARNING for recoverable issues
+5. **Never expose sensitive info** in error messages (PII, secrets, internal paths)
 
 ## Performance Optimization
 
@@ -537,25 +619,50 @@ All I/O operations are async:
 
 ### Logging
 
+**Centralized Logging Infrastructure**:
+
+GIM uses a centralized logging system with request context tracking:
+
+**Key Features**:
+- Request ID tracking via `ContextVar` for tracing requests across logs
+- `@log_operation` decorator for automatic operation timing and status logging
+- Consistent log format with timestamp, level, logger name, and request ID
+- Separate logger namespace (`gim.*`) for organized log management
+
 **Log Levels**:
-- `DEBUG`: Development only
+- `DEBUG`: Development only (operation start/complete with timing)
 - `INFO`: Normal operations
 - `WARNING`: Recoverable issues
-- `ERROR`: Serious problems
+- `ERROR`: Serious problems (operation failures with timing)
 - `CRITICAL`: System failures
 
-**Structured Logging** (future):
-```json
-{
-  "timestamp": "2026-01-27T10:30:00Z",
-  "level": "INFO",
-  "message": "Search completed",
-  "gim_id": "uuid",
-  "operation": "gim_search_issues",
-  "duration_ms": 45,
-  "results_count": 3
-}
+**Log Format**:
 ```
+2026-01-27 10:30:00 | INFO     | gim.services | [abc123ef] | Search completed in 45.23ms
+```
+
+**Implementation**: `src/logging_config.py`
+
+**Usage Example**:
+```python
+from src.logging_config import get_logger, log_operation, set_request_context
+
+logger = get_logger("my_module")
+
+@log_operation("fetch_issues", log_args=True)
+async def fetch_issues(query: str):
+    # Automatically logs: start, timing, completion, or errors
+    return await db.query(query)
+
+# In request handler
+set_request_context()  # Auto-generates request ID
+```
+
+**Request Context**:
+- `set_request_context()`: Initialize request tracking
+- `get_request_context()`: Retrieve current request ID
+- `clear_request_context()`: Clean up after request
+- Automatically added to all log records via `RequestContextFilter`
 
 ## Scalability
 

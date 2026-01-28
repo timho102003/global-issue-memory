@@ -302,6 +302,65 @@ curl "https://your-cluster.qdrant.io/collections/gim_issues/snapshots/{snapshot-
   -o snapshot.tar.gz
 ```
 
+## Database Clients
+
+### Supabase Client
+
+**Implementation**: `src/db/supabase_client.py`
+
+**Features**:
+- Thread-safe singleton pattern with double-checked locking
+- Comprehensive error handling with `SupabaseError` exceptions
+- Automatic logging of all database operations
+- Connection pooling and retry logic
+- Type-safe operations with Pydantic models
+
+**Error Handling**:
+```python
+try:
+    identity = await supabase_client.get_identity_by_gim_id(gim_id)
+except SupabaseError as e:
+    # Structured error with context
+    logger.error(f"Database error: {e.message}")
+    # e.details contains: {"table": "gim_identities", "operation": "select"}
+```
+
+**Thread Safety**:
+The client uses a thread-safe singleton with lock protection:
+```python
+if SupabaseClient._instance is None:
+    with SupabaseClient._lock:
+        if SupabaseClient._instance is None:  # Double-check
+            SupabaseClient._instance = SupabaseClient()
+```
+
+### Qdrant Client
+
+**Implementation**: `src/db/qdrant_client.py`
+
+**Features**:
+- Thread-safe singleton pattern with double-checked locking
+- Comprehensive error handling with `QdrantError` exceptions
+- Automatic logging of all vector operations
+- Auto-creation of collections with proper configuration
+- Batch operation support for efficiency
+
+**Error Handling**:
+```python
+try:
+    results = await qdrant_client.search(query_vector, limit=10)
+except QdrantError as e:
+    # Structured error with context
+    logger.error(f"Vector search failed: {e.message}")
+    # e.details contains: {"collection": "gim_issues", "operation": "search"}
+```
+
+**Collection Configuration**:
+- Automatically creates collection if it doesn't exist
+- Vector size: 3072 (gemini-embedding-001)
+- Distance metric: Cosine similarity
+- Optimized HNSW index for fast approximate nearest neighbor search
+
 ## Performance Considerations
 
 ### Indexing
