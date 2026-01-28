@@ -89,54 +89,173 @@ The MCP server is the primary interface for AI assistants to interact with GIM.
 | **stdio** | Local CLI tools (Claude Code, Cursor) | stdin/stdout | None (local trust) |
 | **streamable-http** | Remote clients, web integrations | `POST /mcp` | OAuth2.0 Bearer Token |
 
-#### OAuth2.0 Authentication (HTTP Transport)
+#### Authentication Methods (HTTP Transport)
 
-For remote access, GIM implements OAuth2.0 following the MCP specification:
+GIM supports two authentication methods for remote HTTP access:
+
+##### 1. OAuth 2.1 with PKCE (Recommended for MCP Clients)
+
+Standard OAuth 2.1 authorization code flow with PKCE for secure MCP client authorization.
+
+**RFC Compliance:**
+- RFC 6749 (OAuth 2.0)
+- RFC 7636 (PKCE)
+- RFC 7591 (Dynamic Client Registration)
+- RFC 8414 (Authorization Server Metadata)
+- RFC 7009 (Token Revocation)
 
 ```
-┌─────────────────┐      ┌─────────────────┐      ┌─────────────────┐
-│   MCP Client    │      │  OAuth Provider │      │   GIM Server    │
-│  (AI Assistant) │      │   (Auth Server) │      │ (Resource Server)│
-└────────┬────────┘      └────────┬────────┘      └────────┬────────┘
-         │                        │                        │
-         │  1. Request Token      │                        │
-         │───────────────────────►│                        │
-         │                        │                        │
-         │  2. Access Token       │                        │
-         │◄───────────────────────│                        │
-         │                        │                        │
-         │  3. MCP Request + Bearer Token                  │
-         │────────────────────────────────────────────────►│
-         │                        │                        │
-         │                        │  4. Verify Token       │
-         │                        │◄───────────────────────│
-         │                        │                        │
-         │                        │  5. Token Valid        │
-         │                        │───────────────────────►│
-         │                        │                        │
-         │  6. MCP Response                                │
-         │◄────────────────────────────────────────────────│
+┌─────────────────┐                              ┌─────────────────┐
+│   MCP Client    │                              │   GIM Server    │
+│  (AI Assistant) │                              │ (OAuth + MCP)   │
+└────────┬────────┘                              └────────┬────────┘
+         │                                                │
+         │  1. GET /.well-known/oauth-authorization-server│
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  2. Server Metadata (endpoints, methods)       │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  3. POST /register {redirect_uris}             │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  4. {client_id, redirect_uris}                 │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  5. Open /authorize + PKCE challenge           │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  6. User enters GIM ID                         │
+         │                                                │
+         │  7. Redirect with authorization code           │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  8. POST /token {code, verifier}               │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  9. {access_token, refresh_token}              │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  10. MCP Request + Bearer Token                │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  11. MCP Response                              │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  [Token expires → refresh with refresh_token] │
 ```
 
-**OAuth2.0 Configuration:**
+**OAuth Flow Steps:**
+
+1. **Discovery**: Client fetches server metadata from `/.well-known/oauth-authorization-server`
+2. **Registration**: Client registers via `POST /register` with redirect URIs
+3. **Authorization**: Client redirects user to `/authorize` with PKCE challenge
+4. **User Login**: User enters GIM ID to authorize the client
+5. **Code Exchange**: Client exchanges authorization code + PKCE verifier for tokens via `POST /token`
+6. **Access Resources**: Client uses access token (JWT) for MCP requests
+7. **Refresh**: Client refreshes access token using refresh token when expired
+
+**Security Features:**
+- PKCE S256 required (prevents authorization code interception)
+- Authorization codes are hashed and single-use
+- Short-lived authorization codes (10 minutes default)
+- Refresh token rotation (old token revoked on use)
+- Access tokens are JWTs (1 hour TTL default)
+- Refresh tokens stored as SHA-256 hashes
+- No client secrets required (public clients)
+
+**Authorization UI:**
+
+GIM includes a web-based authorization page (`/authorize`) for the OAuth flow:
+- Clean, modern UI built with Jinja2 templates
+- User enters GIM ID to authorize the client
+- Shows client information and requested permissions
+- Auto-formats GIM ID input (UUID validation)
+- Mobile-responsive design
+- Link to generate new GIM ID if needed
+
+The authorization page displays:
+- Requesting application name (from client registration)
+- Requested OAuth scopes
+- GIM ID input field with validation
+- Authorize/Cancel buttons
+
+##### 2. Direct GIM ID Exchange (Simple Clients)
+
+For clients that don't support OAuth or need simpler integration, GIM offers direct token exchange using GIM IDs.
+
+```
+┌─────────────────┐                              ┌─────────────────┐
+│   MCP Client    │                              │   GIM Server    │
+│  (AI Assistant) │                              │ (Auth + Resource)│
+└────────┬────────┘                              └────────┬────────┘
+         │                                                │
+         │  1. POST /auth/gim-id (one-time setup)         │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  2. GIM ID (UUID)                              │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  3. POST /auth/token {gim_id}                  │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  4. JWT Access Token (1hr TTL)                 │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  5. MCP Request + Bearer Token                 │
+         │───────────────────────────────────────────────►│
+         │                                                │
+         │  6. MCP Response                               │
+         │◄───────────────────────────────────────────────│
+         │                                                │
+         │  [Token expires → repeat step 3-4]            │
+```
+
+**Direct Exchange Flow:**
+
+1. User calls `POST /auth/gim-id` to generate a GIM identity
+2. User stores GIM ID in client configuration (one-time setup)
+3. Client calls `POST /auth/token {gim_id}` to exchange for JWT
+4. Server validates GIM ID, checks rate limits, returns JWT (1hr TTL)
+5. Client uses JWT for MCP requests: `Authorization: Bearer <token>`
+6. On token expiry, client auto-refreshes using stored GIM ID
+
+**Authentication Configuration:**
 
 ```python
-from mcp.server.auth.settings import AuthSettings
+from src.config import Settings
 
-auth_settings = AuthSettings(
-    issuer_url="https://auth.gim.example.com",
-    resource_server_url="https://api.gim.example.com",
-    required_scopes=["gim:read", "gim:write"],
-)
+# In .env file:
+JWT_SECRET_KEY=your-secret-key-minimum-32-characters-long
+AUTH_ISSUER=gim-mcp
+AUTH_AUDIENCE=gim-clients
+ACCESS_TOKEN_TTL_HOURS=1
 ```
 
-**Scopes:**
+**Auth Endpoints:**
 
-| Scope | Permissions |
-|-------|-------------|
-| `gim:read` | Search issues, get fix bundles |
-| `gim:write` | Submit issues, confirm fixes, report usage |
-| `gim:admin` | (Future) Moderation, merge approval |
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/.well-known/oauth-authorization-server` | GET | OAuth server metadata (RFC 8414) |
+| `/register` | POST | Register OAuth client (RFC 7591) |
+| `/authorize` | GET/POST | OAuth authorization endpoint |
+| `/token` | POST | Token endpoint (code exchange, refresh) |
+| `/revoke` | POST | Token revocation (RFC 7009) |
+| `/auth/gim-id` | POST | Generate new GIM ID (direct exchange) |
+| `/auth/token` | POST | Exchange GIM ID for JWT (direct exchange) |
+| `/auth/revoke` | POST | Revoke a GIM ID |
+| `/auth/rate-limit` | GET | Check rate limit status |
+| `/health` | GET | Health check |
+
+**Rate Limiting:**
+
+| Operation | Daily Limit | Rationale |
+|-----------|-------------|-----------|
+| `gim_submit_issue` | Unlimited | Encourage contributions |
+| `gim_confirm_fix` | Unlimited | Encourage feedback |
+| `gim_report_usage` | Unlimited | Analytics collection |
+| `gim_search_issues` | 100/day | Prevent knowledge scraping |
+| `gim_get_fix_bundle` | 100/day | Paired with search |
 
 #### Running the Server
 
@@ -145,19 +264,28 @@ auth_settings = AuthSettings(
 python -m src.server --transport stdio
 ```
 
-**Remote Mode (HTTP with OAuth2.0):**
+**Remote Mode (HTTP with JWT Authentication):**
 ```bash
-python -m src.server --transport streamable-http --host 0.0.0.0 --port 8000
+python -m src.server --transport http --host 0.0.0.0 --port 8000
 ```
 
-**Dual Mode (both transports):**
+**Without Authentication (Development Only):**
 ```bash
-# Option 1: Run separate processes
-python -m src.server --transport stdio &
-python -m src.server --transport streamable-http --port 8000 &
+python -m src.server --transport http --no-auth
+```
 
-# Option 2: Single process with both (planned)
-python -m src.server --transport all
+**Environment Variables:**
+```bash
+# Required for HTTP transport
+JWT_SECRET_KEY=your-32-char-minimum-secret-key
+AUTH_ISSUER=gim-mcp
+AUTH_AUDIENCE=gim-clients
+ACCESS_TOKEN_TTL_HOURS=1
+
+# Transport configuration
+TRANSPORT_MODE=http  # or stdio
+HTTP_HOST=0.0.0.0
+HTTP_PORT=8000
 ```
 
 ### 2. Data Models (`src/models/`)
@@ -282,8 +410,8 @@ CREATE TABLE issue_usage_stats (
 **Collection:** `gim_issues`
 
 **Vector Configuration:**
-- Embedding model: Google Gemini `text-embedding-004`
-- Dimensions: 768
+- Embedding model: Google Gemini `gemini-embedding-001`
+- Dimensions: 3072
 - Distance metric: Cosine similarity
 
 **Stored Vectors:**
@@ -311,8 +439,8 @@ CREATE TABLE issue_usage_stats (
 
 **Provider:** Google Gemini API
 
-**Model:** `text-embedding-004`
-- Output dimensions: 768
+**Model:** `gemini-embedding-001`
+- Output dimensions: 3072
 - Max input tokens: 2048
 - Use case: Semantic similarity for issue matching
 
@@ -399,7 +527,7 @@ class Settings(BaseSettings):
 
     # AI Services
     google_api_key: SecretStr
-    embedding_model: str = "text-embedding-004"
+    embedding_model: str = "gemini-embedding-001"
     llm_model: str = "gemini-2.5-flash-preview-05-20"
 
     # Server
@@ -585,23 +713,88 @@ Response
 - Cannot submit issues directly
 - No private data exposed (all sanitized)
 
-### 5. OAuth2.0 Security
+### 5. JWT Authentication Security
 
 **Token Requirements:**
-- Access tokens must be JWT format
-- Tokens validated against issuer's JWKS endpoint
-- Short expiration (1 hour recommended)
-- Refresh tokens for long-lived sessions
+- Access tokens are HS256-signed JWTs
+- Tokens validated using shared secret key (min 32 chars)
+- Short expiration (1 hour default, configurable)
+- GIM IDs used as refresh mechanism (no separate refresh tokens)
+
+**GIM ID Security:**
+- GIM IDs are UUID v4 (122 bits entropy, unguessable)
+- No expiration by default (valid until explicitly revoked)
+- Can be revoked if compromised
+- Per-GIM-ID rate limiting (100/day for search operations)
 
 **Transport Security:**
 - HTTPS required for HTTP transport (TLS 1.2+)
-- DNS rebinding protection enabled
-- CORS configured for known origins only
+- JWT signatures prevent token tampering
+- Rate limiting prevents abuse
 
-**Client Registration:**
-- Dynamic client registration supported
-- Client secrets rotated periodically
-- Scopes approved per client
+**Database Tables:**
+
+**`gim_identities` - User identity and rate limiting:**
+```sql
+CREATE TABLE gim_identities (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    gim_id UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_used_at TIMESTAMPTZ,
+    status TEXT DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'revoked')),
+    daily_search_limit INT DEFAULT 100,
+    daily_search_used INT DEFAULT 0,
+    daily_reset_at TIMESTAMPTZ DEFAULT NOW() + INTERVAL '24 hours',
+    total_searches INT DEFAULT 0,
+    total_submissions INT DEFAULT 0,
+    description TEXT,
+    metadata JSONB DEFAULT '{}'
+);
+```
+
+**`oauth_clients` - OAuth client registrations (RFC 7591):**
+```sql
+CREATE TABLE oauth_clients (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    client_id TEXT UNIQUE NOT NULL,
+    client_name TEXT,
+    redirect_uris TEXT[] NOT NULL,
+    grant_types TEXT[] DEFAULT ARRAY['authorization_code', 'refresh_token'],
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    metadata JSONB DEFAULT '{}'
+);
+```
+
+**`oauth_authorization_codes` - Short-lived authorization codes:**
+```sql
+CREATE TABLE oauth_authorization_codes (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    code TEXT UNIQUE NOT NULL,  -- Stored as SHA-256 hash
+    client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+    gim_identity_id UUID NOT NULL REFERENCES gim_identities(id) ON DELETE CASCADE,
+    redirect_uri TEXT NOT NULL,
+    code_challenge TEXT NOT NULL,  -- PKCE challenge
+    code_challenge_method TEXT DEFAULT 'S256',
+    scope TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,  -- 10 minutes default
+    used_at TIMESTAMPTZ,  -- NULL until used (single-use)
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+**`oauth_refresh_tokens` - Refresh tokens with rotation:**
+```sql
+CREATE TABLE oauth_refresh_tokens (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    token_hash TEXT UNIQUE NOT NULL,  -- Stored as SHA-256 hash
+    client_id TEXT NOT NULL REFERENCES oauth_clients(client_id) ON DELETE CASCADE,
+    gim_identity_id UUID NOT NULL REFERENCES gim_identities(id) ON DELETE CASCADE,
+    scope TEXT,
+    expires_at TIMESTAMPTZ NOT NULL,  -- 30 days default
+    revoked_at TIMESTAMPTZ,  -- NULL until revoked/rotated
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
 
 ## Performance Considerations
 
