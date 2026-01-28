@@ -93,7 +93,7 @@ class TestSearchIssuesTool:
              patch("src.tools.gim_search_issues.insert_record") as mock_insert:
 
             mock_sanitize.return_value = ("sanitized error", [])
-            mock_embed.return_value = [0.0] * 768
+            mock_embed.return_value = [0.0] * 3072
             mock_search.return_value = []
             mock_insert.return_value = {}
 
@@ -162,9 +162,9 @@ class TestSubmitIssueTool:
 
             mock_quick.return_value = ("Sanitized text", [])
             mock_embed.return_value = {
-                "error_signature": [0.0] * 768,
-                "root_cause": [0.0] * 768,
-                "fix_summary": [0.0] * 768,
+                "error_signature": [0.0] * 3072,
+                "root_cause": [0.0] * 3072,
+                "fix_summary": [0.0] * 3072,
             }
             mock_search.return_value = []  # No similar issues
             mock_insert.return_value = {"id": "test-id"}
