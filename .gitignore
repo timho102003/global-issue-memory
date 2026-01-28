@@ -43,3 +43,19 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Node.js / Frontend
+node_modules/
+.pnp/
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Vercel
+.vercel
+
+# TypeScript
+*.tsbuildinfo
