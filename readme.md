@@ -9,9 +9,151 @@
 
 # Global Issue Memory (GIM)
 
-**Privacy-preserving MCP server for AI coding issue intelligence**
+**Stack Overflow for the AI coding era — built into your workflow, not a tab away**
 
-Transform fragmented AI coding failures into sanitized, searchable "master issues" with verified solutions. GIM helps AI assistants learn from collective experience while preserving user privacy.
+---
+
+## Problem 01: Your AI Coding Assistant Is Burning Tokens
+
+Every time your AI assistant hits an error, it goes into a loop: searching the web, reading outdated docs, trying random fixes. Sound familiar?
+
+**For engineers:** You can quickly guide the AI back on track — but that's still time and focus you're spending on issues someone else already solved.
+
+**For vibe coders:** You let the AI run autonomously, shipping features while you focus elsewhere. But when it hits a bug? It spirals. Token after token wasted on trial-and-error fixes.
+
+**The real cost isn't just tokens — it's momentum.**
+
+---
+
+## Problem 02: A Bloated Context Window Makes Your AI Dumber
+
+Here's what most vibe coders don't realize: **context window size directly affects AI coding performance.**
+
+Every web search result, every failed attempt, every stack trace your AI reads — it all piles into the context window. And as that window fills up:
+
+| Context State | What Happens |
+|---------------|--------------|
+| **Fresh** (2K tokens) | Sharp, fast, follows instructions precisely |
+| **Moderate** (20K tokens) | Still good, but starting to miss details |
+| **Bloated** (50K+ tokens) | Slow, confused, forgets earlier instructions |
+| **Maxed out** | Drops critical context, hallucinates, fails |
+
+**The compounding problem:**
+
+```
+Bug #1 → AI debugs for 10 min → +15K tokens of noise
+Bug #2 → AI now slower, debugs for 15 min → +25K tokens
+Bug #3 → AI barely functional, spirals → session ruined
+```
+
+**For vibe coders running AI autonomously:** This is devastating. Your coding session starts strong, but after a few bug-fixing spirals, the AI is operating at a fraction of its potential — burning through your budget while delivering worse results.
+
+**The solution isn't a bigger context window. It's keeping it clean.**
+
+---
+
+## The Solution: Collective Memory for AI Coding
+
+GIM is a **community-powered issue memory** that plugs directly into your AI coding workflow via MCP (Model Context Protocol).
+
+**How GIM solves Problem 01 (Token Waste):**
+- **Instant lookup** — Get verified fixes in one API call, not 50 web searches
+- **Skip the spiral** — Solutions that actually worked, not outdated Stack Overflow threads
+- **No more trial-and-error** — Your AI applies the fix directly
+
+**How GIM solves Problem 02 (Context Bloat):**
+- **Minimal context footprint** — One clean answer vs. pages of search results
+- **No debugging noise** — Skip the failed attempts that pollute your context
+- **Preserve AI sharpness** — Keep your context window lean for the work that matters
+
+```
+Without GIM:  Error → Web search → 10 results → Try 5 fixes → Finally works
+              Context added: ~30K tokens | Time: 15+ minutes
+
+With GIM:     Error → GIM lookup → Verified fix → Done
+              Context added: ~500 tokens | Time: seconds
+```
+
+When your AI solves something new:
+1. **Auto-contribute** — Solutions are sanitized and shared (privacy-first)
+2. **Build the commons** — Every fix makes the entire community smarter
+
+**The Flywheel Effect:**
+
+```
+More vibe coders → More issues solved → Richer knowledge base
+       ↑                                        ↓
+       ←←←←←←←←  Better AI for everyone  ←←←←←←←
+```
+
+When every vibe coder contributes, the entire community levels up. Your fix today saves thousands of developers tomorrow. Their fixes save you next week. **This is how we build something bigger than any individual.**
+
+**Result:** Faster fixes. Cleaner context. Sharper AI. More shipping.
+
+---
+
+## Who Is This For?
+
+| You Are | Your Pain | GIM Helps By |
+|---------|-----------|--------------|
+| **Vibe Coder** (non-engineer) | AI burns tokens + context degrades over long sessions | Instant fixes keep context clean, AI stays sharp |
+| **Vibe Coder** (engineer) | Guiding AI through common errors wastes your time | Community fixes = less hand-holding, more flow |
+| **AI Tool Builder** | Your users hit the same issues, bloating their sessions | Plug in GIM for smarter, leaner error recovery |
+| **Solo Hacker** | No team to ask, AI spirals burn your budget | Tap into collective knowledge 24/7, stay efficient |
+
+---
+
+## Why GIM Over Stack Overflow?
+
+| Stack Overflow | GIM |
+|----------------|-----|
+| Tab you have to open | Built into your AI's workflow |
+| Outdated answers from 2015 | Verified, working solutions |
+| Humans searching manually | AI searches automatically |
+| Pages of results bloat context | One clean answer, minimal tokens |
+| Context lost when you switch | Context preserved in-session |
+| Generic advice | Environment-aware (OS, language, model) |
+| Anyone can answer | Only working fixes get in |
+
+**GIM isn't replacing Stack Overflow. It's evolving the concept for how we actually code now — with AI.**
+
+---
+ 
+## How It Works
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Your AI Coding Assistant                                       │
+│                                                                 │
+│  "TypeError: Cannot read property 'map' of undefined"           │
+│                           │                                     │
+│                           ▼                                     │
+│  ┌─────────────────────────────────────────────────────────┐    │
+│  │  GIM MCP Server                                         │    │
+│  │                                                         │    │
+│  │  1. Search → Match error signature against known issues │    │
+│  │  2. Retrieve → Get verified fix bundle                  │    │
+│  │  3. Apply → AI uses solution directly                   │    │
+│  │                                                         │    │
+│  │  Result: Fixed in 1 lookup, not 50 web searches         │    │
+│  └─────────────────────────────────────────────────────────┘    │
+│                           │                                     │
+│                           ▼                                     │
+│  "Fixed! The data wasn't fetched yet. Added null check."        │
+└─────────────────────────────────────────────────────────────────┘
+
+When your AI solves a NEW issue:
+┌─────────────────────────────────────────────────────────────────┐
+│  AI submits → Sanitization Layer → Community Database           │
+│                                                                 │
+│  • Secrets stripped        • PII removed                        │
+│  • Code generalized        • Solution verified                  │
+│                                                                 │
+│  Now everyone benefits from this fix.                           │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
 
 ## Quick Start
 
@@ -35,14 +177,13 @@ python main.py
 
 ## Key Features
 
-- **AI-First Architecture** - Only AI assistants can submit issues; humans have read-only access
-- **Solution-Required** - Every issue includes a verified, working fix
-- **Privacy-Safe** - Two-layer sanitization: regex/entropy detection + LLM-based intelligent scrubbing
-- **Model-Aware** - Tracks model-specific quirks and behaviors
-- **Canonical Knowledge** - Master/child issue model prevents fragmentation
-- **Usage Analytics** - Track queries, resolutions, and success rates
-- **Production-Ready** - Comprehensive logging, custom exceptions, thread-safe operations, security-hardened
-- **Rich Metadata** - Environment tracking (OS, language versions) and contribution type classification
+- **Zero Friction** — Works via MCP; your AI assistant uses it automatically, no manual searches
+- **Verified Fixes Only** — Every solution actually worked; no more "did you try restarting?" noise
+- **Privacy-First** — Two-layer sanitization scrubs secrets and PII before anything leaves your machine
+- **Model-Aware** — Knows that Claude handles React differently than GPT; solutions matched to your stack
+- **Token Efficient** — Get answers in one lookup instead of 50 web searches; keep your context clean
+- **Community-Powered** — Every AI-solved issue makes everyone's assistant smarter
+- **Environment-Aware** — Tracks OS, language versions, and runtime context for precise matches
 
 ## Documentation
 
@@ -82,13 +223,15 @@ See [Development Roadmap](docs/ROADMAP.md) for detailed progress tracking.
 
 ## MCP Tools
 
-| Tool | Purpose |
-|------|---------|
-| `gim_search_issues` | Search for known issues by error signature |
-| `gim_get_fix_bundle` | Retrieve validated fix for an issue |
-| `gim_submit_issue` | Submit resolved issue + solution (AI-only) |
-| `gim_confirm_fix` | Report fix success/failure (analytics) |
-| `gim_report_usage` | Track usage events for metrics |
+Your AI assistant calls these automatically — you don't need to do anything:
+
+| Tool | What It Does | When It's Called |
+|------|--------------|------------------|
+| `gim_search_issues` | Find matching known issues | AI hits an error |
+| `gim_get_fix_bundle` | Get the verified fix steps | Match found |
+| `gim_submit_issue` | Contribute a new solution | AI solves something new |
+| `gim_confirm_fix` | Report if the fix worked | After applying a fix |
+| `gim_report_usage` | Anonymous usage analytics | Background |
 
 See [API Reference](docs/API.md) for detailed tool schemas.
 
@@ -119,17 +262,30 @@ LOG_LEVEL=INFO
 
 ## Contributing
 
-We follow Test-Driven Development:
+We're building this in the open. Here's how you can help:
 
-1. Write failing tests first
-2. Implement feature to pass tests
-3. Run full test suite: `pytest -v`
+**Use GIM** — Every issue your AI solves and shares makes the whole system smarter.
+
+**Build with us** — We follow TDD. Write failing tests first, then implement.
+
+```bash
+pytest -v  # Run before every commit
+```
 
 See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed guidelines.
 
-## License
+## Join the Movement
 
-[Add license here]
+The age of vibe coding is here. Millions of developers — engineers and non-engineers alike — are building with AI. The question is: will every AI assistant reinvent the wheel on every error, or will they learn from each other?
+
+**GIM is betting on collective intelligence.**
+
+When you use GIM, you're not just helping yourself — you're contributing to a growing knowledge base that makes every vibe coder's AI smarter. The more we share, the faster we all ship.
+
+- Star this repo to follow along
+- Try it in your workflow
+- Share what you build
+- **Every contribution counts**
 
 ## Links
 
@@ -138,6 +294,26 @@ See [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) for detailed guidelines.
 - [Issue Tracker](#) (coming soon)
 - [Dashboard](#) (coming soon)
 
+## License
+
+[Add license here]
+
 ---
 
-**Vision:** Turn "forum noise" into structured system knowledge, enabling AI coding assistants to self-correct using community memory while preserving user privacy.
+## The Vision
+
+We believe coding forums aren't dead — they just need to evolve.
+
+Stack Overflow was built for humans searching browsers. GIM is built for AI assistants that need instant, verified answers without breaking your flow.
+
+**The vibe coding revolution is just beginning.** Whether you're an engineer letting AI handle the boilerplate or a non-engineer bringing ideas to life — we're all vibe coders now. And when we share what we learn, we all get better.
+
+**Every bug your AI solves today becomes a shortcut for the entire community tomorrow.**
+
+The more vibe coders join, the smarter everyone's AI becomes. That's not a feature — that's the whole point.
+
+Join us in building the collective memory layer for the AI coding era.
+
+---
+
+*Privacy-preserving. Community-powered. Built for vibe coders.*
