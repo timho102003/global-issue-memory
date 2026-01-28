@@ -1,6 +1,8 @@
 """Supabase database client wrapper with error handling and logging."""
 
+import asyncio
 import threading
+from functools import partial
 from typing import Any, Dict, List, Optional
 
 from supabase import Client, create_client
@@ -47,6 +49,11 @@ def get_supabase_client() -> Client:
     return _client
 
 
+def _sync_insert(client: Client, table: str, data: Dict[str, Any]) -> Any:
+    """Synchronous insert operation."""
+    return client.table(table).insert(data).execute()
+
+
 @log_operation("supabase.insert")
 async def insert_record(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """Insert a record into a table.
@@ -63,7 +70,10 @@ async def insert_record(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """
     try:
         client = get_supabase_client()
-        result = client.table(table).insert(data).execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, partial(_sync_insert, client, table, data)
+        )
         logger.debug(f"Inserted record into {table}")
         return result.data[0] if result.data else {}
     except APIError as e:
@@ -83,6 +93,13 @@ async def insert_record(table: str, data: Dict[str, Any]) -> Dict[str, Any]:
             operation="insert",
             original_error=e,
         )
+
+
+def _sync_update(
+    client: Client, table: str, record_id: str, data: Dict[str, Any], id_column: str
+) -> Any:
+    """Synchronous update operation."""
+    return client.table(table).update(data).eq(id_column, record_id).execute()
 
 
 @log_operation("supabase.update")
@@ -108,7 +125,10 @@ async def update_record(
     """
     try:
         client = get_supabase_client()
-        result = client.table(table).update(data).eq(id_column, record_id).execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, partial(_sync_update, client, table, record_id, data, id_column)
+        )
         logger.debug(f"Updated record {record_id} in {table}")
         return result.data[0] if result.data else {}
     except APIError as e:
@@ -129,6 +149,11 @@ async def update_record(
             details={"record_id": record_id},
             original_error=e,
         )
+
+
+def _sync_get(client: Client, table: str, record_id: str, id_column: str) -> Any:
+    """Synchronous get operation."""
+    return client.table(table).select("*").eq(id_column, record_id).execute()
 
 
 @log_operation("supabase.get")
@@ -152,7 +177,10 @@ async def get_record(
     """
     try:
         client = get_supabase_client()
-        result = client.table(table).select("*").eq(id_column, record_id).execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, partial(_sync_get, client, table, record_id, id_column)
+        )
         if result.data:
             logger.debug(f"Retrieved record {record_id} from {table}")
             return result.data[0]
@@ -176,6 +204,29 @@ async def get_record(
             details={"record_id": record_id},
             original_error=e,
         )
+
+
+def _sync_query(
+    client: Client,
+    table: str,
+    filters: Optional[Dict[str, Any]],
+    select: str,
+    limit: int,
+    order_by: Optional[str],
+    ascending: bool,
+) -> Any:
+    """Synchronous query operation."""
+    query = client.table(table).select(select)
+
+    if filters:
+        for column, value in filters.items():
+            query = query.eq(column, value)
+
+    if order_by:
+        query = query.order(order_by, desc=not ascending)
+
+    query = query.limit(limit)
+    return query.execute()
 
 
 @log_operation("supabase.query")
@@ -205,17 +256,11 @@ async def query_records(
     """
     try:
         client = get_supabase_client()
-        query = client.table(table).select(select)
-
-        if filters:
-            for column, value in filters.items():
-                query = query.eq(column, value)
-
-        if order_by:
-            query = query.order(order_by, desc=not ascending)
-
-        query = query.limit(limit)
-        result = query.execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None,
+            partial(_sync_query, client, table, filters, select, limit, order_by, ascending),
+        )
         record_count = len(result.data or [])
         logger.debug(f"Queried {record_count} records from {table}")
         return result.data or []
@@ -239,6 +284,11 @@ async def query_records(
         )
 
 
+def _sync_delete(client: Client, table: str, record_id: str, id_column: str) -> Any:
+    """Synchronous delete operation."""
+    return client.table(table).delete().eq(id_column, record_id).execute()
+
+
 @log_operation("supabase.delete")
 async def delete_record(
     table: str,
@@ -260,7 +310,10 @@ async def delete_record(
     """
     try:
         client = get_supabase_client()
-        result = client.table(table).delete().eq(id_column, record_id).execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, partial(_sync_delete, client, table, record_id, id_column)
+        )
         deleted = len(result.data or []) > 0
         if deleted:
             logger.debug(f"Deleted record {record_id} from {table}")
@@ -285,6 +338,21 @@ async def delete_record(
             details={"record_id": record_id},
             original_error=e,
         )
+
+
+def _sync_increment(
+    client: Client, table: str, record_id: str, field: str, amount: int
+) -> Any:
+    """Synchronous increment operation."""
+    return client.rpc(
+        "increment_field",
+        {
+            "p_table": table,
+            "p_id": record_id,
+            "p_field": field,
+            "p_amount": amount,
+        }
+    ).execute()
 
 
 @log_operation("supabase.increment")
@@ -312,16 +380,10 @@ async def increment_field(
     """
     try:
         client = get_supabase_client()
-        # Use RPC for atomic increment
-        result = client.rpc(
-            "increment_field",
-            {
-                "p_table": table,
-                "p_id": record_id,
-                "p_field": field,
-                "p_amount": amount,
-            }
-        ).execute()
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(
+            None, partial(_sync_increment, client, table, record_id, field, amount)
+        )
         logger.debug(f"Incremented {field} by {amount} for record {record_id} in {table}")
         return result.data if result.data else {}
     except APIError as e:

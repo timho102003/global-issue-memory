@@ -1,11 +1,32 @@
 """GIM Get Fix Bundle Tool - Retrieve validated fix bundle for an issue."""
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from src.db.supabase_client import get_record, query_records, insert_record
 from src.exceptions import GIMError, SupabaseError, ValidationError
 from src.logging_config import get_logger, set_request_context
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
+
+
+def validate_uuid(value: str, field_name: str) -> str:
+    """Validate that a string is a valid UUID.
+
+    Args:
+        value: The string to validate.
+        field_name: Name of the field for error messages.
+
+    Returns:
+        str: The validated UUID string.
+
+    Raises:
+        ValidationError: If the value is not a valid UUID.
+    """
+    try:
+        UUID(value)
+        return value
+    except (ValueError, TypeError):
+        raise ValidationError(f"Invalid UUID format for {field_name}", field=field_name)
 
 
 logger = get_logger("tools.get_fix_bundle")
@@ -92,6 +113,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
 
         if not issue_id:
             raise ValidationError("issue_id is required", field="issue_id")
+        issue_id = validate_uuid(issue_id, "issue_id")
 
         # Fetch issue details
         logger.debug(f"Fetching issue {issue_id}")

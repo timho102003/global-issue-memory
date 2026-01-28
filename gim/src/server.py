@@ -98,6 +98,7 @@ from src.auth.rate_limiter import RateLimitExceeded, get_rate_limiter
 from src.auth.token_verifier import GIMTokenVerifier, create_fastmcp_jwt_verifier
 from src.config import get_settings
 from src.db.qdrant_client import ensure_collection_exists
+from src.logging_config import set_request_context
 from src.tools.gim_confirm_fix import confirm_fix_tool
 from src.tools.gim_get_fix_bundle import get_fix_bundle_tool
 from src.tools.gim_report_usage import report_usage_tool
@@ -196,6 +197,7 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with gim_id, created_at, description.
         """
+        request_id = set_request_context()
         try:
             body = {}
             try:
@@ -241,6 +243,7 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with access_token, token_type, expires_in.
         """
+        request_id = set_request_context()
         try:
             body = await request.json()
             token_request = TokenRequest(**body)
@@ -279,7 +282,7 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
             return JSONResponse(
                 content=ErrorResponse(
                     error="invalid_request",
-                    error_description=str(e),
+                    error_description="Invalid request parameters",
                 ).model_dump(),
                 status_code=400,
             )
@@ -299,6 +302,7 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with success status.
         """
+        request_id = set_request_context()
         try:
             # Verify JWT token to prove ownership
             auth_header = request.headers.get("Authorization", "")
@@ -389,6 +393,7 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with rate limit information.
         """
+        request_id = set_request_context()
         try:
             # Verify JWT token
             auth_header = request.headers.get("Authorization", "")

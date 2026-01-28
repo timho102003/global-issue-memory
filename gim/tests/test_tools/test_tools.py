@@ -41,7 +41,7 @@ class TestToolDefinitions:
         """Test confirm fix tool has correct definition."""
         assert confirm_fix_tool.name == "gim_confirm_fix"
         assert "issue_id" in confirm_fix_tool.input_schema["required"]
-        assert "success" in confirm_fix_tool.input_schema["required"]
+        assert "fix_worked" in confirm_fix_tool.input_schema["required"]
 
     def test_report_usage_tool_definition(self) -> None:
         """Test report usage tool has correct definition."""
@@ -204,7 +204,7 @@ class TestConfirmFixTool:
 
             result = await confirm_execute({
                 "issue_id": "nonexistent",
-                "success": True,
+                "fix_worked": True,
             })
             parsed = json.loads(result[0].text)
             assert "error" in parsed
@@ -225,12 +225,12 @@ class TestConfirmFixTool:
 
             result = await confirm_execute({
                 "issue_id": "test-id",
-                "success": True,
+                "fix_worked": True,
             })
             parsed = json.loads(result[0].text)
 
             assert parsed["success"] is True
-            assert parsed["fix_succeeded"] is True
+            assert parsed["fix_worked"] is True
 
 
 class TestReportUsageTool:

@@ -1,10 +1,14 @@
 """Embedding service using Google Gemini embedding models."""
 
+import asyncio
+import logging
 from typing import List, Optional
 
 from google import genai
 
 from src.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 _client: Optional[genai.Client] = None
@@ -32,14 +36,25 @@ def _get_embedding_dimensions() -> int:
     return get_settings().embedding_dimensions
 
 
-async def generate_embedding(text: str) -> List[float]:
+async def generate_embedding(
+    text: str,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+) -> List[float]:
     """Generate embedding vector for text using Gemini.
+
+    Uses exponential backoff retry for transient API failures.
 
     Args:
         text: Text to embed.
+        max_retries: Maximum number of retry attempts.
+        base_delay: Base delay in seconds for exponential backoff.
 
     Returns:
         List[float]: Embedding vector (dimensions from config).
+
+    Raises:
+        Exception: If all retry attempts fail.
     """
     dimensions = _get_embedding_dimensions()
 
@@ -50,22 +65,48 @@ async def generate_embedding(text: str) -> List[float]:
     client = _get_client()
     settings = get_settings()
 
-    response = client.models.embed_content(
-        model=settings.embedding_model,
-        contents=text,
-    )
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.embed_content(
+                model=settings.embedding_model,
+                contents=text,
+            )
+            return list(response.embeddings[0].values)
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"Embedding API call failed (attempt {attempt + 1}/{max_retries}), "
+                    f"retrying in {delay}s: {e}"
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"Embedding API call failed after {max_retries} attempts: {e}")
 
-    return list(response.embeddings[0].values)
+    raise last_exception  # type: ignore[misc]
 
 
-async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
+async def generate_embeddings_batch(
+    texts: List[str],
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+) -> List[List[float]]:
     """Generate embeddings for multiple texts.
+
+    Uses exponential backoff retry for transient API failures.
 
     Args:
         texts: List of texts to embed.
+        max_retries: Maximum number of retry attempts.
+        base_delay: Base delay in seconds for exponential backoff.
 
     Returns:
         List[List[float]]: List of embedding vectors.
+
+    Raises:
+        Exception: If all retry attempts fail.
     """
     if not texts:
         return []
@@ -80,18 +121,36 @@ async def generate_embeddings_batch(texts: List[str]) -> List[List[float]]:
     if not non_empty:
         return [[0.0] * dimensions for _ in texts]
 
-    # Embed non-empty texts
-    response = client.models.embed_content(
-        model=settings.embedding_model,
-        contents=[t for _, t in non_empty],
-    )
+    # Embed non-empty texts with retry
+    last_exception = None
+    for attempt in range(max_retries):
+        try:
+            response = client.models.embed_content(
+                model=settings.embedding_model,
+                contents=[t for _, t in non_empty],
+            )
 
-    # Build result list with zero vectors for empty texts
-    results: List[List[float]] = [[0.0] * dimensions for _ in texts]
-    for (original_idx, _), embedding in zip(non_empty, response.embeddings):
-        results[original_idx] = list(embedding.values)
+            # Build result list with zero vectors for empty texts
+            results: List[List[float]] = [[0.0] * dimensions for _ in texts]
+            for (original_idx, _), embedding in zip(non_empty, response.embeddings):
+                results[original_idx] = list(embedding.values)
 
-    return results
+            return results
+        except Exception as e:
+            last_exception = e
+            if attempt < max_retries - 1:
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"Batch embedding API call failed (attempt {attempt + 1}/{max_retries}), "
+                    f"retrying in {delay}s: {e}"
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(
+                    f"Batch embedding API call failed after {max_retries} attempts: {e}"
+                )
+
+    raise last_exception  # type: ignore[misc]
 
 
 async def generate_issue_embeddings(

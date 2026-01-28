@@ -260,20 +260,30 @@ class RateLimiter:
                 reset_at=reset_at,
             )
 
-        # Atomic increment using raw SQL via RPC
+        # Atomic increment using optimistic locking with retry
         # This prevents race conditions where two requests pass the check
-        try:
-            # Use Supabase's atomic update capability
-            result = client.table(TABLE_NAME).update({
-                "daily_search_used": daily_used + 1,
-            }).eq("id", str(identity_id)).eq(
-                "daily_search_used", daily_used  # Optimistic lock
-            ).execute()
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                # Use Supabase's atomic update capability with optimistic lock
+                result = client.table(TABLE_NAME).update({
+                    "daily_search_used": daily_used + 1,
+                }).eq("id", str(identity_id)).eq(
+                    "daily_search_used", daily_used  # Optimistic lock
+                ).execute()
 
-            if not result.data:
-                # Another request incremented first, re-check
+                if result.data:
+                    # Success - update was applied
+                    break
+
+                # Another request incremented first, re-fetch and retry
                 record = await get_record(TABLE_NAME, str(identity_id))
+                if not record:
+                    raise ValueError(f"Identity not found: {identity_id}")
+
                 daily_used = record.get("daily_search_used", 0)
+
+                # Re-check limit before retrying
                 if daily_used >= daily_limit:
                     raise RateLimitExceeded(
                         operation=operation,
@@ -281,18 +291,23 @@ class RateLimiter:
                         used=daily_used,
                         reset_at=reset_at,
                     )
-                # Retry the increment
-                client.table(TABLE_NAME).update({
-                    "daily_search_used": daily_used + 1,
-                }).eq("id", str(identity_id)).execute()
-        except Exception as e:
-            logger.warning(f"Atomic rate limit update failed: {e}")
-            # Fall back to simple update
-            await update_record(
-                TABLE_NAME,
-                str(identity_id),
-                {"daily_search_used": daily_used + 1},
-            )
+
+                if attempt == max_retries - 1:
+                    logger.warning(
+                        f"Rate limit optimistic lock failed after {max_retries} attempts"
+                    )
+
+            except RateLimitExceeded:
+                raise
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    logger.warning(f"Atomic rate limit update failed: {e}")
+                    # Fall back to simple update on last attempt
+                    await update_record(
+                        TABLE_NAME,
+                        str(identity_id),
+                        {"daily_search_used": daily_used + 1},
+                    )
 
         new_used = daily_used + 1
 
