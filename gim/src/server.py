@@ -76,6 +76,8 @@ from uuid import UUID
 
 from fastmcp import FastMCP
 from jinja2 import Environment, FileSystemLoader
+from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 
@@ -87,6 +89,7 @@ from src.auth.models import (
     RevokeRequest,
     TokenRequest,
 )
+from src.db.supabase_client import get_record, query_records
 from src.auth.oauth_models import (
     OAuthAuthorizationRequest,
     OAuthClientRegistrationRequest,
@@ -170,6 +173,9 @@ def create_mcp_server(use_auth: bool = True) -> FastMCP:
 
     # Register OAuth 2.1 endpoints
     _register_oauth_endpoints(mcp)
+
+    # Register REST API endpoints for frontend consumption
+    _register_api_endpoints(mcp)
 
     # Register MCP tools
     _register_tools(mcp)
@@ -950,6 +956,493 @@ def _render_authorize_form_with_error(
     return HTMLResponse(content=html, status_code=400)
 
 
+def _register_api_endpoints(mcp: FastMCP) -> None:
+    """Register REST API endpoints for frontend consumption.
+
+    These endpoints wrap MCP tools to provide HTTP REST access.
+
+    Args:
+        mcp: FastMCP server instance.
+    """
+
+    @mcp.custom_route("/mcp/tools/gim_search_issues", methods=["POST"])
+    async def api_search_issues(request: Request) -> JSONResponse:
+        """Search issues via REST API.
+
+        Body:
+            arguments: Dict with search parameters (query, category, etc.)
+
+        Returns:
+            JSON with search results in IssueSearchResponse format.
+        """
+        try:
+            body = await request.json()
+            arguments = body.get("arguments", {})
+
+            # Map frontend params to tool params
+            tool_args = {
+                "error_message": arguments.get("query", ""),
+                "provider": arguments.get("provider"),
+                "limit": arguments.get("limit", 10),
+            }
+
+            # Remove None values
+            tool_args = {k: v for k, v in tool_args.items() if v is not None}
+
+            # Execute the search tool
+            result = await search_issues_tool.execute(tool_args)
+
+            if not result:
+                return JSONResponse(
+                    content={"issues": [], "total": 0, "limit": 10, "offset": 0},
+                    status_code=200,
+                )
+
+            # Parse the tool result (it returns JSON string in text content)
+            import json as json_module
+
+            tool_response = json_module.loads(result[0].text)
+
+            # Transform to frontend expected format
+            issues = []
+            for r in tool_response.get("results", []):
+                issues.append({
+                    "id": r.get("issue_id"),
+                    "canonical_title": r.get("canonical_error", "")[:100],
+                    "description": r.get("root_cause", ""),
+                    "root_cause_category": r.get("root_cause_category", "environment"),
+                    "confidence_score": r.get("similarity_score", 0),
+                    "child_issue_count": 0,
+                    "environment_coverage": [],
+                    "verification_count": r.get("verification_count", 0),
+                    "status": "active",
+                    "created_at": "",
+                    "updated_at": "",
+                })
+
+            return JSONResponse(
+                content={
+                    "issues": issues,
+                    "total": len(issues),
+                    "limit": arguments.get("limit", 10),
+                    "offset": arguments.get("offset", 0),
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Search issues API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred during search",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/issues/{issue_id}", methods=["GET"])
+    async def api_get_issue(request: Request) -> JSONResponse:
+        """Get a single issue by ID.
+
+        Path params:
+            issue_id: Issue UUID.
+
+        Returns:
+            JSON with MasterIssue format.
+        """
+        try:
+            issue_id = request.path_params.get("issue_id")
+            if not issue_id:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="invalid_request",
+                        error_description="issue_id is required",
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            # Validate UUID format
+            try:
+                UUID(issue_id)
+            except (ValueError, TypeError):
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="invalid_request",
+                        error_description="Invalid issue_id format",
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            # Query the master_issues table
+            issue = await get_record(table="master_issues", record_id=issue_id)
+
+            if not issue:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="not_found",
+                        error_description=f"Issue {issue_id} not found",
+                    ).model_dump(),
+                    status_code=404,
+                )
+
+            # Get child issue count
+            child_issues = await query_records(
+                table="child_issues",
+                filters={"master_issue_id": issue_id},
+                limit=1000,
+            )
+
+            # Transform to frontend format
+            return JSONResponse(
+                content={
+                    "id": issue.get("id"),
+                    "canonical_title": issue.get("canonical_error", "")[:100],
+                    "description": issue.get("root_cause", ""),
+                    "root_cause_category": issue.get("root_cause_category", "environment"),
+                    "confidence_score": 0.8,
+                    "child_issue_count": len(child_issues),
+                    "environment_coverage": [],
+                    "verification_count": issue.get("verification_count", 0),
+                    "last_confirmed_at": issue.get("last_verified_at"),
+                    "status": "active",
+                    "created_at": issue.get("created_at", ""),
+                    "updated_at": issue.get("created_at", ""),
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Get issue API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/mcp/tools/gim_get_fix_bundle", methods=["POST"])
+    async def api_get_fix_bundle(request: Request) -> JSONResponse:
+        """Get fix bundle for an issue.
+
+        Body:
+            arguments: Dict with issue_id.
+
+        Returns:
+            JSON with content array containing FixBundle.
+        """
+        try:
+            body = await request.json()
+            arguments = body.get("arguments", {})
+            issue_id = arguments.get("issue_id")
+
+            if not issue_id:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="invalid_request",
+                        error_description="issue_id is required",
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            # Execute the tool
+            result = await get_fix_bundle_tool.execute(arguments)
+
+            if not result:
+                return JSONResponse(
+                    content={"content": []},
+                    status_code=200,
+                )
+
+            # Parse tool response
+            import json as json_module
+
+            tool_response = json_module.loads(result[0].text)
+
+            # Transform to frontend expected format
+            fix_bundle = tool_response.get("fix_bundle")
+            if not fix_bundle:
+                return JSONResponse(
+                    content={"content": []},
+                    status_code=200,
+                )
+
+            return JSONResponse(
+                content={
+                    "content": [{
+                        "id": fix_bundle.get("id"),
+                        "master_issue_id": tool_response.get("issue_id"),
+                        "summary": fix_bundle.get("summary", ""),
+                        "fix_steps": fix_bundle.get("fix_steps", []),
+                        "code_changes": fix_bundle.get("code_changes", []),
+                        "env_actions": fix_bundle.get("environment_actions", []),
+                        "constraints": fix_bundle.get("constraints", {}),
+                        "verification_steps": fix_bundle.get("verification_steps", []),
+                        "confidence_score": fix_bundle.get("confidence_score", 0),
+                        "verification_count": fix_bundle.get("verification_count", 0),
+                        "created_at": "",
+                        "updated_at": "",
+                    }]
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Get fix bundle API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/mcp/tools/gim_submit_issue", methods=["POST"])
+    async def api_submit_issue(request: Request) -> JSONResponse:
+        """Submit a new issue.
+
+        Body:
+            arguments: Dict with issue submission data.
+
+        Returns:
+            JSON with created ChildIssue.
+        """
+        try:
+            # Verify authorization
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="unauthorized",
+                        error_description="Authorization header required",
+                    ).model_dump(),
+                    status_code=401,
+                )
+
+            token = auth_header[7:]  # Remove "Bearer " prefix
+            token_verifier = GIMTokenVerifier()
+            claims = token_verifier.verify(token)
+
+            if claims is None:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="unauthorized",
+                        error_description="Invalid or expired token",
+                    ).model_dump(),
+                    status_code=401,
+                )
+
+            body = await request.json()
+            arguments = body.get("arguments", {})
+
+            # Execute the tool
+            result = await submit_issue_tool.execute(arguments)
+
+            if not result:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="server_error",
+                        error_description="Submission failed",
+                    ).model_dump(),
+                    status_code=500,
+                )
+
+            # Parse tool response
+            import json as json_module
+
+            tool_response = json_module.loads(result[0].text)
+
+            if not tool_response.get("success"):
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="submission_failed",
+                        error_description=tool_response.get("message", "Unknown error"),
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            return JSONResponse(
+                content={
+                    "id": tool_response.get("issue_id"),
+                    "master_issue_id": tool_response.get("linked_to") or tool_response.get("issue_id"),
+                    "created_at": "",
+                    **arguments,
+                },
+                status_code=201,
+            )
+        except Exception as e:
+            logger.error(f"Submit issue API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/mcp/tools/gim_confirm_fix", methods=["POST"])
+    async def api_confirm_fix(request: Request) -> JSONResponse:
+        """Confirm a fix worked.
+
+        Body:
+            arguments: Dict with issue_id, fix_bundle_id, success, notes.
+
+        Returns:
+            JSON with confirmation result.
+        """
+        try:
+            # Verify authorization
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="unauthorized",
+                        error_description="Authorization header required",
+                    ).model_dump(),
+                    status_code=401,
+                )
+
+            token = auth_header[7:]  # Remove "Bearer " prefix
+            token_verifier = GIMTokenVerifier()
+            claims = token_verifier.verify(token)
+
+            if claims is None:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="unauthorized",
+                        error_description="Invalid or expired token",
+                    ).model_dump(),
+                    status_code=401,
+                )
+
+            body = await request.json()
+            arguments = body.get("arguments", {})
+
+            # Map frontend args to tool args
+            tool_args = {
+                "issue_id": arguments.get("issue_id"),
+                "fix_worked": arguments.get("success", False),
+                "feedback": arguments.get("notes", ""),
+            }
+
+            # Execute the tool
+            result = await confirm_fix_tool.execute(tool_args)
+
+            if not result:
+                return JSONResponse(
+                    content={"confirmed": False},
+                    status_code=200,
+                )
+
+            # Parse tool response
+            import json as json_module
+
+            tool_response = json_module.loads(result[0].text)
+
+            return JSONResponse(
+                content={
+                    "confirmed": tool_response.get("success", False),
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Confirm fix API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/dashboard/stats", methods=["GET"])
+    async def api_dashboard_stats(request: Request) -> JSONResponse:
+        """Get dashboard statistics.
+
+        Returns:
+            JSON with DashboardStats format.
+        """
+        try:
+            # Query master issues for stats
+            all_issues = await query_records(
+                table="master_issues",
+                limit=10000,
+            )
+
+            # Query usage events for recent activity
+            recent_events = await query_records(
+                table="usage_events",
+                order_by="created_at",
+                ascending=False,
+                limit=10,
+            )
+
+            # Calculate stats
+            total_issues = len(all_issues)
+            active_issues = sum(1 for i in all_issues if i.get("verification_count", 0) > 0)
+            resolved_issues = sum(1 for i in all_issues if i.get("verification_count", 0) >= 3)
+
+            # Group by category
+            issues_by_category: dict = {}
+            for issue in all_issues:
+                cat = issue.get("root_cause_category", "other")
+                issues_by_category[cat] = issues_by_category.get(cat, 0) + 1
+
+            # Group by provider
+            issues_by_provider: dict = {}
+            for issue in all_issues:
+                provider = issue.get("model_provider", "unknown")
+                if provider:
+                    issues_by_provider[provider] = issues_by_provider.get(provider, 0) + 1
+
+            # Get unique contributors from child issues
+            child_issues = await query_records(
+                table="child_issues",
+                limit=10000,
+            )
+            contributors = set()
+            for child in child_issues:
+                if child.get("provider"):
+                    contributors.add(child.get("provider"))
+
+            # Transform recent events to activity items
+            recent_activity = []
+            for event in recent_events[:10]:
+                event_type = event.get("event_type", "update")
+                activity_type = "update"
+                if event_type == "issue_submitted":
+                    activity_type = "submission"
+                elif event_type == "fix_confirmed":
+                    activity_type = "confirmation"
+
+                recent_activity.append({
+                    "id": event.get("id", ""),
+                    "type": activity_type,
+                    "issue_title": event.get("issue_id", "")[:50] if event.get("issue_id") else "Unknown",
+                    "contributor": event.get("provider"),
+                    "timestamp": event.get("created_at", ""),
+                })
+
+            return JSONResponse(
+                content={
+                    "total_issues": total_issues,
+                    "resolved_issues": resolved_issues,
+                    "active_issues": active_issues,
+                    "total_contributors": len(contributors),
+                    "issues_by_category": issues_by_category,
+                    "issues_by_provider": issues_by_provider,
+                    "recent_activity": recent_activity,
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Dashboard stats API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred while fetching stats",
+                ).model_dump(),
+                status_code=500,
+            )
+
+
 def _register_tools(mcp: FastMCP) -> None:
     """Register MCP tools.
 
@@ -1158,11 +1651,26 @@ def run_server() -> None:
 
     # Run with appropriate transport
     if args.transport == "http":
+        # Configure CORS middleware for frontend access
+        cors_middleware = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=[
+                    "http://localhost:3000",
+                    "http://127.0.0.1:3000",
+                ],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ]
+
         mcp.run(
             transport="http",
             host=args.host,
             port=args.port,
             path="/",  # Serve MCP at root path for OAuth compatibility
+            middleware=cors_middleware,
         )
     else:
         mcp.run(transport="stdio")

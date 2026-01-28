@@ -94,3 +94,43 @@ class ConfirmFixResponse(BaseModel):
     new_confidence_score: float = Field(ge=0.0, le=1.0)
     verification_count: int = Field(ge=0)
     message: str
+
+
+class ActivityItem(BaseModel):
+    """Activity item for dashboard recent activity.
+
+    Attributes:
+        id: Unique activity ID.
+        type: Type of activity (submission, confirmation, update).
+        issue_title: Title of the related issue.
+        contributor: Optional contributor identifier.
+        timestamp: ISO timestamp of the activity.
+    """
+
+    id: str
+    type: str = Field(description="submission, confirmation, or update")
+    issue_title: str
+    contributor: Optional[str] = None
+    timestamp: str
+
+
+class DashboardStats(BaseModel):
+    """Response model for dashboard statistics.
+
+    Attributes:
+        total_issues: Total number of master issues.
+        resolved_issues: Number of resolved/verified issues.
+        active_issues: Number of currently active issues.
+        total_contributors: Number of unique contributors.
+        issues_by_category: Count of issues per root cause category.
+        issues_by_provider: Count of issues per model provider.
+        recent_activity: List of recent activity items.
+    """
+
+    total_issues: int = Field(ge=0)
+    resolved_issues: int = Field(ge=0)
+    active_issues: int = Field(ge=0)
+    total_contributors: int = Field(ge=0)
+    issues_by_category: dict = Field(default_factory=dict)
+    issues_by_provider: dict = Field(default_factory=dict)
+    recent_activity: List[ActivityItem] = Field(default_factory=list)
