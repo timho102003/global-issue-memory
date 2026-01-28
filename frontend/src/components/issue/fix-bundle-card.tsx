@@ -27,11 +27,12 @@ export function FixBundleCard({ fixBundle }: FixBundleCardProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-base">Fix Bundle</CardTitle>
-          <Badge variant="outline">v{fixBundle.version}</Badge>
+          {fixBundle.version && <Badge variant="outline">v{fixBundle.version}</Badge>}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
         {/* Environment Actions */}
+        {fixBundle.env_actions && fixBundle.env_actions.length > 0 && (
         <div className="flex flex-col gap-3">
           <h4 className="text-sm font-medium text-text-primary">
             Environment Actions
@@ -66,8 +67,10 @@ export function FixBundleCard({ fixBundle }: FixBundleCardProps) {
             ))}
           </div>
         </div>
+        )}
 
         {/* Verification Steps */}
+        {fixBundle.verification && fixBundle.verification.length > 0 && (
         <div className="flex flex-col gap-3">
           <h4 className="text-sm font-medium text-text-primary">
             Verification Steps
@@ -91,6 +94,7 @@ export function FixBundleCard({ fixBundle }: FixBundleCardProps) {
             ))}
           </div>
         </div>
+        )}
 
         {/* Code Fix */}
         {fixBundle.code_fix && (

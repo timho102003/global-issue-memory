@@ -24,6 +24,9 @@ const categoryToBadge: Record<RootCauseCategory, NonNullable<BadgeProps["categor
   framework_specific: "framework",
 };
 
+// Fallback display info for unknown categories
+const DEFAULT_CATEGORY_INFO = { label: "Other", color: "cat-environment" };
+
 interface IssuesTableProps {
   issues: MasterIssue[];
   selectedIds?: string[];
@@ -76,8 +79,9 @@ export function IssuesTable({
       </TableHeader>
       <TableBody>
         {issues.map((issue) => {
-          const categoryInfo = CATEGORY_DISPLAY[issue.root_cause_category as RootCauseCategory];
-          const statusInfo = STATUS_DISPLAY[issue.status];
+          const categoryInfo = CATEGORY_DISPLAY[issue.root_cause_category as RootCauseCategory] || DEFAULT_CATEGORY_INFO;
+          const statusInfo = STATUS_DISPLAY[issue.status] || { label: "Unknown", variant: "warning" as const };
+          const badgeCategory = categoryToBadge[issue.root_cause_category as RootCauseCategory] || "environment";
 
           return (
             <TableRow key={issue.id}>
@@ -92,11 +96,11 @@ export function IssuesTable({
                   href={`/dashboard/issues/${issue.id}`}
                   className="font-medium text-text-primary hover:text-primary"
                 >
-                  {issue.canonical_title}
+                  {issue.canonical_title || "Untitled Issue"}
                 </Link>
               </TableCell>
               <TableCell>
-                <Badge category={categoryToBadge[issue.root_cause_category]}>
+                <Badge category={badgeCategory}>
                   {categoryInfo.label}
                 </Badge>
               </TableCell>

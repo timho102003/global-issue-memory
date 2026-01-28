@@ -468,35 +468,77 @@ async def execute(arguments: Dict[str, Any]) -> List:
 
 
 def _classify_root_cause(root_cause: str) -> str:
-    """Classify root cause into a category.
+    """Classify root cause into a RootCauseCategory value.
+
+    Maps root cause descriptions to one of the standard categories:
+    - environment: Dependencies, configuration, version issues
+    - model_behavior: AI model behavior, tool calling, schema issues
+    - api_integration: API, authentication, network issues
+    - code_generation: Code syntax, types, logic issues
+    - framework_specific: Framework-specific issues
 
     Args:
         root_cause: Root cause description.
 
     Returns:
-        str: Root cause category.
+        str: Root cause category matching RootCauseCategory enum values.
     """
     root_cause_lower = root_cause.lower()
 
-    # Simple keyword-based classification
-    categories = {
-        "api_breaking_change": ["breaking change", "deprecated", "removed", "no longer supported"],
-        "version_incompatibility": ["version", "incompatible", "upgrade", "downgrade"],
-        "missing_dependency": ["missing", "not found", "import error", "module not found"],
-        "configuration_error": ["config", "configuration", "setting", "environment variable"],
-        "type_error": ["type error", "type mismatch", "cannot be", "expected"],
-        "null_reference": ["none", "null", "undefined", "nonetype"],
-        "authentication_error": ["auth", "permission", "forbidden", "unauthorized"],
-        "network_error": ["connection", "timeout", "network", "socket"],
-        "syntax_error": ["syntax", "parse", "invalid"],
-        "logic_error": ["logic", "incorrect", "wrong", "bug"],
-    }
+    # Keywords mapped to RootCauseCategory values
+    # environment: Dependencies, configuration, version issues
+    environment_keywords = [
+        "missing", "not found", "import error", "module not found",
+        "dependency", "package", "install", "pip", "npm", "version",
+        "incompatible", "upgrade", "downgrade", "config", "configuration",
+        "setting", "environment variable", "env", "path",
+    ]
 
-    for category, keywords in categories.items():
-        if any(keyword in root_cause_lower for keyword in keywords):
-            return category
+    # model_behavior: AI model behavior issues
+    model_behavior_keywords = [
+        "model", "llm", "ai", "claude", "gpt", "openai", "anthropic",
+        "tool calling", "function calling", "schema", "prompt",
+        "hallucination", "context", "token", "response format",
+        "tool_use", "tool use", "assistant", "completion",
+    ]
 
-    return "other"
+    # api_integration: API and network issues
+    api_integration_keywords = [
+        "api", "endpoint", "request", "response", "http", "rest",
+        "auth", "authentication", "permission", "forbidden", "unauthorized",
+        "connection", "timeout", "network", "socket", "cors", "header",
+        "rate limit", "quota", "breaking change", "deprecated",
+    ]
+
+    # code_generation: Code-related issues
+    code_generation_keywords = [
+        "type error", "type mismatch", "cannot be", "expected",
+        "syntax", "parse", "invalid", "none", "null", "undefined",
+        "nonetype", "attribute", "key error", "index", "logic",
+        "incorrect", "wrong", "bug", "exception", "traceback",
+    ]
+
+    # framework_specific: Framework issues
+    framework_keywords = [
+        "langchain", "llamaindex", "fastapi", "django", "flask",
+        "react", "next", "vue", "angular", "tensorflow", "pytorch",
+        "pandas", "numpy", "framework", "library", "sdk",
+    ]
+
+    # Check in priority order
+    if any(kw in root_cause_lower for kw in model_behavior_keywords):
+        return "model_behavior"
+    if any(kw in root_cause_lower for kw in framework_keywords):
+        return "framework_specific"
+    if any(kw in root_cause_lower for kw in api_integration_keywords):
+        return "api_integration"
+    if any(kw in root_cause_lower for kw in code_generation_keywords):
+        return "code_generation"
+    if any(kw in root_cause_lower for kw in environment_keywords):
+        return "environment"
+
+    # Default to environment for unknown issues
+    return "environment"
 
 
 async def _log_submission_event(

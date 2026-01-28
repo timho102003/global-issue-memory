@@ -956,6 +956,42 @@ def _render_authorize_form_with_error(
     return HTMLResponse(content=html, status_code=400)
 
 
+# Valid RootCauseCategory values for frontend
+VALID_CATEGORIES = {"environment", "model_behavior", "api_integration", "code_generation", "framework_specific"}
+
+# Map legacy/invalid category names to valid ones
+CATEGORY_MAPPING = {
+    # Legacy categories from old _classify_root_cause
+    "api_breaking_change": "api_integration",
+    "version_incompatibility": "environment",
+    "missing_dependency": "environment",
+    "configuration_error": "environment",
+    "type_error": "code_generation",
+    "null_reference": "code_generation",
+    "authentication_error": "api_integration",
+    "network_error": "api_integration",
+    "syntax_error": "code_generation",
+    "logic_error": "code_generation",
+    "other": "environment",
+}
+
+
+def _normalize_category(category: str) -> str:
+    """Normalize a root cause category to a valid RootCauseCategory value.
+
+    Args:
+        category: Category string from database.
+
+    Returns:
+        str: Valid RootCauseCategory value.
+    """
+    if not category:
+        return "environment"
+    if category in VALID_CATEGORIES:
+        return category
+    return CATEGORY_MAPPING.get(category, "environment")
+
+
 def _register_api_endpoints(mcp: FastMCP) -> None:
     """Register REST API endpoints for frontend consumption.
 
@@ -1004,7 +1040,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "id": issue.get("id"),
                         "canonical_title": canonical_error[:100] if canonical_error else "",
                         "description": issue.get("root_cause", "") or "",
-                        "root_cause_category": issue.get("root_cause_category", "environment"),
+                        "root_cause_category": _normalize_category(issue.get("root_cause_category")),
                         "confidence_score": float(issue.get("confidence_score", 0) or 0),
                         "child_issue_count": len(child_issues),
                         "environment_coverage": issue.get("environment_coverage", []) or [],
@@ -1056,7 +1092,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "id": r.get("issue_id"),
                     "canonical_title": canonical_error[:100] if canonical_error else "",
                     "description": r.get("root_cause", "") or "",
-                    "root_cause_category": r.get("root_cause_category", "environment"),
+                    "root_cause_category": _normalize_category(r.get("root_cause_category")),
                     "confidence_score": r.get("similarity_score", 0) or 0,
                     "child_issue_count": 0,
                     "environment_coverage": [],
@@ -1133,7 +1169,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "id": issue.get("id"),
                     "canonical_title": canonical_error[:100] if canonical_error else "",
                     "description": issue.get("root_cause", "") or "",
-                    "root_cause_category": issue.get("root_cause_category", "environment"),
+                    "root_cause_category": _normalize_category(issue.get("root_cause_category")),
                     "confidence_score": float(issue.get("confidence_score", 0) or 0),
                     "child_issue_count": len(child_issues),
                     "environment_coverage": issue.get("environment_coverage", []) or [],
@@ -1220,7 +1256,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "id": issue.get("id"),
                     "canonical_title": issue.get("canonical_error", "")[:100],
                     "description": issue.get("root_cause", ""),
-                    "root_cause_category": issue.get("root_cause_category", "environment"),
+                    "root_cause_category": _normalize_category(issue.get("root_cause_category")),
                     "confidence_score": 0.8,
                     "child_issue_count": len(child_issues),
                     "environment_coverage": [],
