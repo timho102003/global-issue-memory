@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIM Authorization</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 400px;
+            width: 100%;
+            padding: 40px;
+        }
+        .logo {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .logo h1 {
+            font-size: 28px;
+            color: #1a1a2e;
+            letter-spacing: -0.5px;
+        }
+        .logo span {
+            color: #4a90d9;
+        }
+        .client-info {
+            background: #f5f7fa;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        .client-info p {
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 4px;
+        }
+        .client-info strong {
+            color: #1a1a2e;
+            font-size: 16px;
+        }
+        .divider {
+            text-align: center;
+            color: #999;
+            font-size: 14px;
+            margin: 20px 0;
+            position: relative;
+        }
+        .divider::before,
+        .divider::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: 40%;
+            height: 1px;
+            background: #ddd;
+        }
+        .divider::before { left: 0; }
+        .divider::after { right: 0; }
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        label {
+            font-size: 14px;
+            color: #444;
+            font-weight: 500;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            font-family: monospace;
+        }
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #4a90d9;
+            box-shadow: 0 0 0 3px rgba(74, 144, 217, 0.1);
+        }
+        input[type="text"]::placeholder {
+            color: #aaa;
+        }
+        .btn-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 8px;
+        }
+        button {
+            flex: 1;
+            padding: 14px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.1s, box-shadow 0.2s;
+        }
+        button:active {
+            transform: scale(0.98);
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #4a90d9 0%, #357abd 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(74, 144, 217, 0.3);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 16px rgba(74, 144, 217, 0.4);
+        }
+        .btn-secondary {
+            background: #f5f7fa;
+            color: #666;
+        }
+        .btn-secondary:hover {
+            background: #eee;
+        }
+        .generate-link {
+            text-align: center;
+            margin-top: 16px;
+        }
+        .generate-link a {
+            color: #4a90d9;
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .generate-link a:hover {
+            text-decoration: underline;
+        }
+        .error {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 12px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            margin-bottom: 16px;
+        }
+        .help-text {
+            font-size: 12px;
+            color: #888;
+            margin-top: 4px;
+        }
+        .scope-info {
+            background: #fefce8;
+            border: 1px solid #fef08a;
+            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+        }
+        .scope-info p {
+            font-size: 14px;
+            color: #854d0e;
+        }
+        /* Hidden fields */
+        input[type="hidden"] {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <h1><span>GIM</span> Authorization</h1>
+        </div>
+
+        {% if error %}
+        <div class="error">
+            {{ error }}
+        </div>
+        {% endif %}
+
+        <div class="client-info">
+            <p>Application requesting access:</p>
+            <strong>{{ client_name or client_id }}</strong>
+        </div>
+
+        {% if scope %}
+        <div class="scope-info">
+            <p>Requested permissions: <strong>{{ scope }}</strong></p>
+        </div>
+        {% endif %}
+
+        <div class="divider">Authorize with GIM ID</div>
+
+        <form method="POST" action="/authorize">
+            <!-- Pass through OAuth parameters -->
+            <input type="hidden" name="client_id" value="{{ client_id }}">
+            <input type="hidden" name="redirect_uri" value="{{ redirect_uri }}">
+            <input type="hidden" name="code_challenge" value="{{ code_challenge }}">
+            <input type="hidden" name="code_challenge_method" value="{{ code_challenge_method }}">
+            <input type="hidden" name="state" value="{{ state or '' }}">
+            <input type="hidden" name="scope" value="{{ scope or '' }}">
+            <input type="hidden" name="response_type" value="code">
+
+            <div>
+                <label for="gim_id">Your GIM ID</label>
+                <input
+                    type="text"
+                    id="gim_id"
+                    name="gim_id"
+                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    pattern="[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"
+                    required
+                    autocomplete="off"
+                >
+                <p class="help-text">Enter your permanent GIM ID to authorize this application.</p>
+            </div>
+
+            <div class="btn-group">
+                <button type="button" class="btn-secondary" onclick="window.close()">Cancel</button>
+                <button type="submit" class="btn-primary">Authorize</button>
+            </div>
+        </form>
+
+        <div class="generate-link">
+            <a href="/auth/gim-id" target="_blank">Don't have a GIM ID? Generate one</a>
+        </div>
+    </div>
+
+    <script>
+        // Auto-format UUID as user types
+        document.getElementById('gim_id').addEventListener('input', function(e) {
+            let value = e.target.value.replace(/[^0-9a-fA-F]/g, '').toLowerCase();
+            if (value.length > 32) value = value.slice(0, 32);
+
+            // Insert dashes at appropriate positions
+            let formatted = '';
+            for (let i = 0; i < value.length; i++) {
+                if (i === 8 || i === 12 || i === 16 || i === 20) {
+                    formatted += '-';
+                }
+                formatted += value[i];
+            }
+            e.target.value = formatted;
+        });
+    </script>
+</body>
+</html>
