@@ -29,21 +29,49 @@ logger = get_logger("tools.submit_issue")
 
 submit_issue_tool = ToolDefinition(
     name="gim_submit_issue",
-    description="""Submit a RESOLVED issue to GIM (Global Issue Memory).
+    description="""Submit a RESOLVED issue to GIM to help other AI assistants.
 
-Use this ONLY after you have successfully resolved an error.
-The submission will be automatically sanitized to remove sensitive information.
+┌─────────────────────────────────────────────────────────────────────┐
+│  WHEN TO USE: After you have SUCCESSFULLY resolved an error AND    │
+│  gim_search_issues found no existing solution.                     │
+│  The fix MUST be verified working before submission.               │
+└─────────────────────────────────────────────────────────────────────┘
 
-Requirements:
-- Must include the error that was encountered
-- Must include the working fix (fix_bundle)
-- Solution must have been verified to work
+DO NOT SUBMIT:
+  ✗ Errors that are not yet resolved
+  ✗ Issues that already exist in GIM (check with gim_search_issues first)
+  ✗ Trivial typos or user-specific configuration issues
+  ✗ Fixes that haven't been tested/verified
 
-The tool will:
-1. Sanitize all content (remove secrets, PII, domain-specific names)
-2. Check for similar existing issues
-3. Create new master issue or add as child issue
-4. Store the verified fix bundle""",
+WORKFLOW:
+  1. Encounter error → Call gim_search_issues
+  2. No match found → Solve the error yourself
+  3. Fix verified working → Call this tool to share the solution
+  4. GIM automatically:
+     ├─ Sanitizes all content (removes secrets, PII, paths)
+     ├─ Checks for similar issues (may link as child issue)
+     ├─ Generates embeddings for future search matching
+     └─ Stores the fix bundle for others to use
+
+WHAT TO INCLUDE:
+  Required:
+    - error_message: The exact error text
+    - root_cause: WHY the error occurred (not just WHAT)
+    - fix_summary: Brief description of the solution
+    - fix_steps: Step-by-step instructions
+
+  Highly Recommended:
+    - code_changes: Specific file modifications
+    - verification_steps: How to verify it works
+    - language, framework: Context for matching
+
+DEDUPLICATION:
+  - If similar issue exists (>90% match): Creates child issue linked to master
+  - If new issue: Creates master issue with full fix bundle
+  - Child issues add environment diversity without duplicating knowledge
+
+PRIVACY: All content is sanitized before storage. Secrets, API keys,
+file paths, and domain-specific names are automatically removed.""",
     input_schema={
         "type": "object",
         "properties": {

@@ -11,22 +11,72 @@ from src.tools.base import ToolDefinition, create_text_response, create_error_re
 logger = get_logger("tools.report_usage")
 
 
+# Valid event types for usage tracking
+# Note: Most events are logged automatically by their respective tools.
+# This tool is for manual reporting of events not covered elsewhere.
+VALID_EVENT_TYPES = [
+    # Auto-logged by gim_search_issues - DO NOT use manually
+    "search",
+    # Auto-logged by gim_get_fix_bundle - DO NOT use manually
+    "fix_retrieved",
+    # Auto-logged by gim_confirm_fix - DO NOT use manually
+    "fix_confirmed",
+    # Auto-logged by gim_submit_issue - DO NOT use manually
+    "issue_submitted",
+    # Manual events - USE these with this tool
+    "fix_applied",
+    "error_encountered",
+    "session_start",
+    "session_end",
+]
+
+
 report_usage_tool = ToolDefinition(
     name="gim_report_usage",
     description="""Report a usage event to GIM for analytics.
 
-Use this to track how GIM is being used, which helps improve the service.
-Event types include: search, fix_retrieved, fix_applied, error_encountered.""",
+⚠️  IMPORTANT: Most events are logged AUTOMATICALLY by other GIM tools.
+    Only use this tool for manual event reporting.
+
+AUTOMATIC EVENTS (DO NOT report manually - already tracked):
+├─ 'search'          → Auto-logged by gim_search_issues
+├─ 'fix_retrieved'   → Auto-logged by gim_get_fix_bundle
+├─ 'fix_confirmed'   → Auto-logged by gim_confirm_fix
+└─ 'issue_submitted' → Auto-logged by gim_submit_issue
+
+MANUAL EVENTS (use this tool for these):
+├─ 'fix_applied'        → After applying a fix WITHOUT using gim_get_fix_bundle
+├─ 'error_encountered'  → To report errors that couldn't be processed
+├─ 'session_start'      → At the beginning of a coding session (optional)
+└─ 'session_end'        → At the end of a coding session (optional)
+
+EXAMPLE USAGE:
+  When to use 'fix_applied':
+    - You found a fix through other means (not GIM) and applied it
+    - You want to track that a manual fix was attempted
+
+  When to use 'error_encountered':
+    - An error occurred that prevented normal GIM workflow
+    - Useful for debugging and improving GIM reliability""",
     input_schema={
         "type": "object",
         "properties": {
             "event_type": {
                 "type": "string",
-                "description": "Type of usage event",
+                "enum": VALID_EVENT_TYPES,
+                "description": (
+                    "Type of usage event. Most events are auto-logged by other tools. "
+                    "Use 'fix_applied' when applying a fix not from GIM, "
+                    "'error_encountered' for processing errors, "
+                    "'session_start'/'session_end' for session tracking."
+                ),
             },
             "metadata": {
                 "type": "object",
-                "description": "Additional event metadata",
+                "description": (
+                    "Additional event context. Include relevant details like "
+                    "error_message, issue_id, fix_source, or any debugging info."
+                ),
             },
         },
         "required": ["event_type"],
@@ -35,16 +85,6 @@ Event types include: search, fix_retrieved, fix_applied, error_encountered.""",
         "readOnlyHint": False,
     },
 )
-
-
-VALID_EVENT_TYPES = [
-    "search",
-    "fix_retrieved",
-    "fix_applied",
-    "error_encountered",
-    "session_start",
-    "session_end",
-]
 
 
 async def execute(arguments: Dict[str, Any]) -> List:

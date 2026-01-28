@@ -13,21 +13,54 @@ logger = get_logger("tools.get_fix_bundle")
 
 get_fix_bundle_tool = ToolDefinition(
     name="gim_get_fix_bundle",
-    description="""Retrieve the validated fix bundle for a GIM issue.
+    description="""Retrieve the complete fix bundle for a GIM issue.
 
-Use this after finding a matching issue via gim_search_issues.
-Returns the complete fix including steps, code changes, environment actions,
-and verification instructions.""",
+┌─────────────────────────────────────────────────────────────────────┐
+│  WHEN TO USE: After gim_search_issues returns a matching issue.    │
+│  Use the issue_id from the search results.                         │
+└─────────────────────────────────────────────────────────────────────┘
+
+WORKFLOW:
+  1. Get issue_id from gim_search_issues results
+  2. Call this tool with that issue_id
+  3. Apply the fix:
+     ├─ Follow fix_steps in order
+     ├─ Apply code_changes to the user's files
+     └─ Run any environment_actions (installs, configs)
+  4. Verify using verification_steps
+  5. ⚠️  CRITICAL: Call `gim_confirm_fix` to report the outcome
+     └─ This improves fix quality for everyone!
+
+WHAT YOU GET BACK:
+  - fix_steps: Ordered list of human-readable instructions
+  - code_changes: Specific file modifications with before/after
+  - environment_actions: Package installs, config changes, etc.
+  - verification_steps: How to confirm the fix works
+  - confidence_score: How reliable this fix is (0.0-1.0)
+  - verification_count: How many times this fix has been verified
+
+CONFIDENCE SCORES:
+  - 0.9+  : Highly reliable, verified by multiple users
+  - 0.7-0.9: Good reliability, likely to work
+  - 0.5-0.7: Moderate reliability, may need adaptation
+  - <0.5  : Low reliability, use with caution""",
     input_schema={
         "type": "object",
         "properties": {
             "issue_id": {
                 "type": "string",
-                "description": "The issue ID from gim_search_issues results",
+                "format": "uuid",
+                "description": (
+                    "The issue ID from gim_search_issues results. "
+                    "This is a UUID that uniquely identifies the issue."
+                ),
             },
             "include_related": {
                 "type": "boolean",
-                "description": "Include related child issues",
+                "description": (
+                    "Include related child issues that may have additional "
+                    "context or alternative fixes. Default: true."
+                ),
                 "default": True,
             },
         },

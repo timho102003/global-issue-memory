@@ -14,24 +14,68 @@ logger = get_logger("tools.confirm_fix")
 
 confirm_fix_tool = ToolDefinition(
     name="gim_confirm_fix",
-    description="""Report whether a fix bundle from GIM worked.
+    description="""Report whether a fix from GIM worked or failed.
 
-Use this after attempting to apply a fix from gim_get_fix_bundle.
-This helps improve fix reliability scores and benefits future users.""",
+┌─────────────────────────────────────────────────────────────────────┐
+│  ⚠️  CRITICAL: ALWAYS call this after applying a fix from GIM!     │
+│  This feedback loop is essential for improving fix quality.        │
+└─────────────────────────────────────────────────────────────────────┘
+
+WHEN TO USE:
+  - ALWAYS after applying a fix from gim_get_fix_bundle
+  - Even if the fix only partially worked
+  - Even if you had to modify the fix slightly
+
+WHY THIS MATTERS:
+  ├─ fix_worked=true  → Increases confidence score, helps future users
+  ├─ fix_worked=false → Decreases confidence score, prevents bad advice
+  └─ Your feedback improves GIM for ALL AI coding assistants
+
+WORKFLOW:
+  1. Apply fix from gim_get_fix_bundle
+  2. Test if the error is resolved
+  3. Call this tool:
+     ├─ fix_worked=true  if the error is fully resolved
+     ├─ fix_worked=false if the error persists or new errors appear
+     └─ Include feedback with details about what happened
+
+FEEDBACK EXAMPLES:
+  ✓ "Fix worked perfectly, error resolved"
+  ✓ "Fix worked after changing import path"
+  ✗ "Fix caused new TypeError on line 45"
+  ✗ "Fix didn't apply - file structure different"
+  ? "Partially worked - main error fixed but side effect remains"
+
+WHAT HAPPENS:
+  - Successful fixes: confidence_score increases, verification_count += 1
+  - Failed fixes: confidence_score decreases (Bayesian update)
+  - All feedback is stored to improve future fix recommendations""",
     input_schema={
         "type": "object",
         "properties": {
             "issue_id": {
                 "type": "string",
-                "description": "The issue ID the fix was for",
+                "format": "uuid",
+                "description": (
+                    "The issue ID the fix was for. Get this from "
+                    "gim_search_issues or gim_get_fix_bundle response."
+                ),
             },
             "fix_worked": {
                 "type": "boolean",
-                "description": "Whether the fix worked (true) or failed (false)",
+                "description": (
+                    "Did the fix resolve the error? "
+                    "true = error resolved, false = error persists or new errors."
+                ),
             },
             "feedback": {
                 "type": "string",
-                "description": "Optional feedback about the fix attempt",
+                "maxLength": 500,
+                "description": (
+                    "Details about the fix attempt. Include: what worked, "
+                    "what didn't, any modifications needed, or new errors encountered. "
+                    "This feedback helps improve fixes for everyone."
+                ),
             },
         },
         "required": ["issue_id", "fix_worked"],

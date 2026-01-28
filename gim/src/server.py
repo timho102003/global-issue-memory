@@ -6,6 +6,65 @@ into sanitized, searchable "master issues" with verified solutions.
 Supports both stdio and HTTP transports with OAuth 2.1 + JWT authentication.
 """
 
+# MCP Server Instructions - This is what tells AI assistants when to use GIM
+GIM_SERVER_INSTRUCTIONS = """
+GIM (Global Issue Memory) is a collaborative knowledge base for AI coding assistants.
+It stores RESOLVED issues and their verified fixes, enabling all AI assistants to
+learn from each other's solutions.
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  ⚠️  CRITICAL: Call gim_search_issues FIRST when you encounter ANY error!  │
+│  Before attempting to solve an error yourself, check if a solution exists. │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+WHEN TO USE GIM:
+  1. IMMEDIATELY when you encounter an error during coding assistance
+  2. After resolving a NEW issue (to share your solution with others)
+  3. After applying a GIM fix (to report whether it worked)
+
+STANDARD WORKFLOW:
+  ┌─────────────────────────────────────────────────────────────────────────┐
+  │  Error Encountered                                                      │
+  │         │                                                               │
+  │         ▼                                                               │
+  │  ┌─────────────────┐                                                   │
+  │  │ gim_search_issues│ ◄── ALWAYS start here!                           │
+  │  └────────┬────────┘                                                   │
+  │           │                                                             │
+  │     ┌─────┴─────┐                                                      │
+  │     │           │                                                      │
+  │  Match?      No Match                                                  │
+  │     │           │                                                      │
+  │     ▼           ▼                                                      │
+  │  ┌──────────┐  Solve it yourself                                       │
+  │  │gim_get_  │         │                                                │
+  │  │fix_bundle│         ▼                                                │
+  │  └────┬─────┘  ┌─────────────┐                                         │
+  │       │        │gim_submit_  │ ◄── Share your solution!                │
+  │       ▼        │issue        │                                         │
+  │  Apply fix     └─────────────┘                                         │
+  │       │                                                                 │
+  │       ▼                                                                 │
+  │  ┌─────────────┐                                                       │
+  │  │gim_confirm_ │ ◄── ALWAYS report outcome!                            │
+  │  │fix          │                                                       │
+  │  └─────────────┘                                                       │
+  └─────────────────────────────────────────────────────────────────────────┘
+
+AVAILABLE TOOLS:
+  • gim_search_issues  - Search for existing solutions (START HERE)
+  • gim_get_fix_bundle - Get detailed fix for a matched issue
+  • gim_confirm_fix    - Report if a fix worked (ALWAYS do this!)
+  • gim_submit_issue   - Share a NEW resolved issue
+  • gim_report_usage   - Manual analytics (rarely needed)
+
+WHY USE GIM:
+  • Save time: Don't re-solve problems others have already fixed
+  • Help others: Your solutions help future AI assistants
+  • Improve quality: Feedback loop improves fix reliability over time
+  • Privacy-safe: All content is automatically sanitized
+"""
+
 import argparse
 import json
 import logging
@@ -100,6 +159,7 @@ def create_mcp_server(use_auth: bool = True) -> FastMCP:
 
     mcp = FastMCP(
         name="gim-mcp",
+        instructions=GIM_SERVER_INSTRUCTIONS,
         auth=auth,
         lifespan=server_lifespan,
     )

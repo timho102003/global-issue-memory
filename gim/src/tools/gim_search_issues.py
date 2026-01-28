@@ -24,37 +24,77 @@ search_issues_tool = ToolDefinition(
     name="gim_search_issues",
     description="""Search GIM (Global Issue Memory) for known issues matching an error.
 
-Use this tool when encountering an error to check if a solution already exists.
-Returns ranked matching issues with fix bundles.
+┌─────────────────────────────────────────────────────────────────────┐
+│  WHEN TO USE: Immediately when you encounter an error.             │
+│  This should be your FIRST step before attempting to solve errors. │
+└─────────────────────────────────────────────────────────────────────┘
 
-The query will be automatically sanitized to remove any sensitive information.""",
+GIM stores solutions from all AI coding assistants. Searching first can save
+time by finding a verified fix instead of solving from scratch.
+
+WORKFLOW:
+  1. Call this tool with the error message
+  2. Check results:
+     ├─ If match found (similarity > 0.7):
+     │    → Call `gim_get_fix_bundle` with the issue_id
+     │    → Apply the fix
+     │    → Call `gim_confirm_fix` to report outcome
+     └─ If no match found:
+          → Solve the error yourself
+          → Call `gim_submit_issue` to share your solution
+
+WHAT YOU GET BACK:
+  - issue_id: Use this with gim_get_fix_bundle to get the full fix
+  - similarity_score: How closely the issue matches (0.0-1.0)
+  - canonical_error: The standardized error description
+  - root_cause: Why the error occurs
+  - has_fix_bundle: Whether a verified fix exists
+  - fix_summary: Brief description of the fix
+
+PRIVACY: Your query is automatically sanitized to remove secrets, PII,
+and domain-specific information before processing.""",
     input_schema={
         "type": "object",
         "properties": {
             "error_message": {
                 "type": "string",
-                "description": "The error message to search for",
+                "description": (
+                    "The full error message or stack trace. Include as much context "
+                    "as possible for better matching. Will be auto-sanitized."
+                ),
             },
             "model": {
                 "type": "string",
-                "description": "AI model being used (e.g., 'claude-3-opus', 'gpt-4')",
+                "description": (
+                    "Your AI model name (e.g., 'claude-3.5-sonnet', 'gpt-4-turbo'). "
+                    "Helps track which models encounter which issues."
+                ),
             },
             "provider": {
                 "type": "string",
-                "description": "Model provider (e.g., 'anthropic', 'openai')",
+                "enum": ["anthropic", "openai", "google", "meta", "mistral", "other"],
+                "description": "Your model provider for filtering and analytics.",
             },
             "language": {
                 "type": "string",
-                "description": "Programming language context (e.g., 'python', 'javascript')",
+                "description": (
+                    "Programming language (e.g., 'python', 'javascript', 'typescript'). "
+                    "Helps find language-specific solutions."
+                ),
             },
             "framework": {
                 "type": "string",
-                "description": "Framework being used (e.g., 'fastapi', 'react')",
+                "description": (
+                    "Framework in use (e.g., 'fastapi', 'react', 'django'). "
+                    "Helps find framework-specific solutions."
+                ),
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum number of results to return",
+                "description": "Maximum results to return (1-20). Default: 5.",
                 "default": 5,
+                "minimum": 1,
+                "maximum": 20,
             },
         },
         "required": ["error_message"],
