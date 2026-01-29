@@ -78,6 +78,24 @@ class TestUsageEventCreate:
         )
         assert event.metadata["query_length"] == 150
 
+    def test_with_gim_id(self) -> None:
+        """Test usage event with gim_id set."""
+        gim_id = uuid4()
+        event = UsageEventCreate(
+            event_type=EventType.SEARCH,
+            gim_id=gim_id,
+            model="claude-3-opus",
+            provider="anthropic",
+        )
+        assert event.gim_id == gim_id
+
+    def test_gim_id_optional(self) -> None:
+        """Test that gim_id defaults to None when not provided."""
+        event = UsageEventCreate(
+            event_type=EventType.SEARCH,
+        )
+        assert event.gim_id is None
+
 
 class TestUsageEventResponse:
     """Tests for UsageEventResponse model."""

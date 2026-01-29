@@ -32,6 +32,7 @@ class UsageEventCreate(BaseModel):
     Attributes:
         event_type: Type of the event.
         issue_id: Related issue ID if applicable.
+        gim_id: GIM user ID who triggered the event.
         model: Name of the AI model.
         provider: Provider of the AI model.
         metadata: Additional event metadata.
@@ -41,6 +42,7 @@ class UsageEventCreate(BaseModel):
 
     event_type: EventType
     issue_id: Optional[UUID] = None
+    gim_id: Optional[UUID] = None
     model: Optional[str] = Field(None, max_length=100)
     provider: Optional[str] = Field(None, max_length=50)
     metadata: dict = Field(default_factory=dict)
