@@ -69,7 +69,7 @@ class Settings(BaseSettings):
         description="JWT token audience identifier"
     )
     access_token_ttl_hours: int = Field(
-        default=1,
+        default=24,
         ge=1,
         le=24,
         description="JWT access token TTL in hours"
