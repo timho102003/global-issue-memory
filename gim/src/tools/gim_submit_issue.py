@@ -218,6 +218,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         provider = arguments.get("provider")
         language = arguments.get("language")
         framework = arguments.get("framework")
+        gim_id = arguments.get("gim_id")
 
         # New fields
         language_version = arguments.get("language_version")
@@ -418,6 +419,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             is_child=is_child_issue,
             model=model,
             provider=provider,
+            gim_id=gim_id,
         )
 
         logger.info(f"Successfully submitted {result_type} {result_id}")
@@ -543,6 +545,7 @@ async def _log_submission_event(
     is_child: bool,
     model: Optional[str] = None,
     provider: Optional[str] = None,
+    gim_id: Optional[str] = None,
 ) -> None:
     """Log an issue submission event.
 
@@ -553,20 +556,21 @@ async def _log_submission_event(
         is_child: Whether this is a child issue.
         model: AI model used.
         provider: Model provider.
+        gim_id: GIM user ID who submitted the issue.
     """
     try:
-        await insert_record(
-            table="usage_events",
-            data={
-                "event_type": "issue_submitted",
-                "issue_id": issue_id,
-                "model": model,
-                "provider": provider,
-                "metadata": {
-                    "is_child_issue": is_child,
-                },
+        data = {
+            "event_type": "issue_submitted",
+            "issue_id": issue_id,
+            "model": model,
+            "provider": provider,
+            "metadata": {
+                "is_child_issue": is_child,
             },
-        )
+        }
+        if gim_id:
+            data["gim_id"] = gim_id
+        await insert_record(table="usage_events", data=data)
     except Exception as e:
         # Log but don't fail the main operation
         logger.error(f"Failed to log submission event: {e}", exc_info=True)

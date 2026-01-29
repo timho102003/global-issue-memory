@@ -992,6 +992,32 @@ def _normalize_category(category: str) -> str:
     return CATEGORY_MAPPING.get(category, "environment")
 
 
+def _extract_optional_gim_id(request: Request) -> Optional[str]:
+    """Extract gim_id from JWT in Authorization header, if present.
+
+    This is for optionally-authenticated endpoints where we want to track
+    the user if they provide a token, but don't require authentication.
+
+    Args:
+        request: Starlette request object.
+
+    Returns:
+        The gim_id string from JWT claims, or None if not available.
+    """
+    try:
+        auth_header = request.headers.get("Authorization", "")
+        if not auth_header.startswith("Bearer "):
+            return None
+        token = auth_header[7:]
+        token_verifier = GIMTokenVerifier()
+        claims = token_verifier.verify(token)
+        if claims is None:
+            return None
+        return claims.sub
+    except Exception:
+        return None
+
+
 def _register_api_endpoints(mcp: FastMCP) -> None:
     """Register REST API endpoints for frontend consumption.
 
@@ -1089,6 +1115,11 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 "provider": arguments.get("provider"),
                 "limit": limit,
             }
+
+            # Inject optional gim_id from JWT if present
+            optional_gim_id = _extract_optional_gim_id(request)
+            if optional_gim_id:
+                tool_args["gim_id"] = optional_gim_id
 
             # Remove None values
             tool_args = {k: v for k, v in tool_args.items() if v is not None}
@@ -1362,6 +1393,11 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=400,
                 )
 
+            # Inject optional gim_id from JWT if present
+            optional_gim_id = _extract_optional_gim_id(request)
+            if optional_gim_id:
+                arguments["gim_id"] = optional_gim_id
+
             # Execute the tool
             result = await get_fix_bundle_tool.execute(arguments)
 
@@ -1476,6 +1512,9 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             body = await request.json()
             arguments = body.get("arguments", {})
 
+            # Inject gim_id from JWT claims
+            arguments["gim_id"] = claims.sub
+
             # Execute the tool
             result = await submit_issue_tool.execute(arguments)
 
@@ -1564,6 +1603,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 "issue_id": arguments.get("issue_id"),
                 "fix_worked": arguments.get("success", False),
                 "feedback": arguments.get("notes", ""),
+                "gim_id": claims.sub,
             }
 
             # Execute the tool
@@ -1745,13 +1785,13 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             # Query usage events for this GIM ID
             all_events = await query_records(
                 table="usage_events",
-                filters={"provider": gim_id},
+                filters={"gim_id": gim_id},
                 limit=10000,
             )
 
             # Count events by type
             total_searches = sum(
-                1 for e in all_events if e.get("event_type") == "search_performed"
+                1 for e in all_events if e.get("event_type") == "search"
             )
             total_submissions = sum(
                 1 for e in all_events if e.get("event_type") == "issue_submitted"
@@ -1791,7 +1831,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             # Calculate rate limit usage (mock for now - would need real rate limit tracking)
             daily_searches_used = sum(
                 1 for e in all_events
-                if e.get("event_type") == "search_performed"
+                if e.get("event_type") == "search"
                 and e.get("created_at", "").startswith(today.isoformat())
             )
             daily_searches_limit = 100

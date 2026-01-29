@@ -127,6 +127,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         language = arguments.get("language")
         framework = arguments.get("framework")
         limit = arguments.get("limit", 10)
+        gim_id = arguments.get("gim_id")
 
         if not error_message:
             raise ValidationError("error_message is required", field="error_message")
@@ -166,6 +167,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 results_count=0,
                 model=model,
                 provider=provider,
+                gim_id=gim_id,
             )
 
             logger.info("No matching issues found")
@@ -216,6 +218,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             results_count=len(issues),
             model=model,
             provider=provider,
+            gim_id=gim_id,
         )
 
         logger.info(f"Found {len(issues)} matching issues")
@@ -268,6 +271,7 @@ async def _log_search_event(
     results_count: int,
     model: Optional[str] = None,
     provider: Optional[str] = None,
+    gim_id: Optional[str] = None,
 ) -> None:
     """Log a search event for analytics.
 
@@ -278,20 +282,21 @@ async def _log_search_event(
         results_count: Number of results returned.
         model: AI model used.
         provider: Model provider.
+        gim_id: GIM user ID who triggered the search.
     """
     try:
-        await insert_record(
-            table="usage_events",
-            data={
-                "event_type": "search",
-                "model": model,
-                "provider": provider,
-                "metadata": {
-                    "query_length": len(query),
-                    "results_count": results_count,
-                },
+        data = {
+            "event_type": "search",
+            "model": model,
+            "provider": provider,
+            "metadata": {
+                "query_length": len(query),
+                "results_count": results_count,
             },
-        )
+        }
+        if gim_id:
+            data["gim_id"] = gim_id
+        await insert_record(table="usage_events", data=data)
     except Exception as e:
         # Don't fail the search if logging fails
         logger.warning(f"Failed to log search event: {e}")

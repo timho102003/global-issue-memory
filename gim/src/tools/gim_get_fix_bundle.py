@@ -110,6 +110,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
     try:
         issue_id = arguments.get("issue_id")
         include_related = arguments.get("include_related", True)
+        gim_id = arguments.get("gim_id")
 
         if not issue_id:
             raise ValidationError("issue_id is required", field="issue_id")
@@ -146,6 +147,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         await _log_retrieval_event(
             issue_id=issue_id,
             fix_bundle_id=best_fix.get("id"),
+            gim_id=gim_id,
         )
 
         logger.info(f"Retrieved fix bundle {best_fix.get('id')} for issue {issue_id}")
@@ -195,6 +197,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
 async def _log_retrieval_event(
     issue_id: str,
     fix_bundle_id: Optional[str] = None,
+    gim_id: Optional[str] = None,
 ) -> None:
     """Log a fix bundle retrieval event.
 
@@ -203,18 +206,19 @@ async def _log_retrieval_event(
     Args:
         issue_id: Issue ID.
         fix_bundle_id: Fix bundle ID.
+        gim_id: GIM user ID who retrieved the fix bundle.
     """
     try:
-        await insert_record(
-            table="usage_events",
-            data={
-                "event_type": "fix_retrieved",
-                "issue_id": issue_id,
-                "metadata": {
-                    "fix_bundle_id": fix_bundle_id,
-                },
+        data = {
+            "event_type": "fix_retrieved",
+            "issue_id": issue_id,
+            "metadata": {
+                "fix_bundle_id": fix_bundle_id,
             },
-        )
+        }
+        if gim_id:
+            data["gim_id"] = gim_id
+        await insert_record(table="usage_events", data=data)
     except Exception as e:
         logger.error(f"Failed to log retrieval event: {e}", exc_info=True)
 

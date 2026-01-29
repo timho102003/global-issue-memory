@@ -103,6 +103,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
     try:
         event_type = arguments.get("event_type")
         metadata = arguments.get("metadata", {})
+        gim_id = arguments.get("gim_id")
 
         if not event_type:
             raise ValidationError("event_type is required", field="event_type")
@@ -116,13 +117,13 @@ async def execute(arguments: Dict[str, Any]) -> List:
 
         # Record the usage event
         logger.debug(f"Recording usage event: {event_type}")
-        await insert_record(
-            table="usage_events",
-            data={
-                "event_type": event_type,
-                "metadata": metadata,
-            },
-        )
+        data = {
+            "event_type": event_type,
+            "metadata": metadata,
+        }
+        if gim_id:
+            data["gim_id"] = gim_id
+        await insert_record(table="usage_events", data=data)
 
         logger.info(f"Usage event recorded: {event_type}")
         return create_text_response({

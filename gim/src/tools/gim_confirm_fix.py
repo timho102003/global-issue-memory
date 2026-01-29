@@ -124,6 +124,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         issue_id = arguments.get("issue_id")
         fix_worked = arguments.get("fix_worked")
         feedback = arguments.get("feedback", "")
+        gim_id = arguments.get("gim_id")
 
         if not issue_id:
             raise ValidationError("issue_id is required", field="issue_id")
@@ -204,6 +205,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
             fix_bundle_id=fix_bundle_id,
             fix_worked=fix_worked,
             feedback=feedback,
+            gim_id=gim_id,
         )
 
         logger.info(f"Fix confirmation recorded for issue {issue_id}: worked={fix_worked}")
@@ -237,6 +239,7 @@ async def _log_confirmation_event(
     fix_bundle_id: Optional[str],
     fix_worked: bool,
     feedback: str,
+    gim_id: Optional[str] = None,
 ) -> None:
     """Log a fix confirmation event.
 
@@ -247,20 +250,21 @@ async def _log_confirmation_event(
         fix_bundle_id: Fix bundle ID.
         fix_worked: Whether fix succeeded.
         feedback: Optional feedback.
+        gim_id: GIM user ID who confirmed the fix.
     """
     try:
-        await insert_record(
-            table="usage_events",
-            data={
-                "event_type": "fix_confirmed",
-                "issue_id": issue_id,
-                "metadata": {
-                    "fix_bundle_id": fix_bundle_id,
-                    "fix_worked": fix_worked,
-                    "feedback": feedback[:500] if feedback else None,
-                },
+        data = {
+            "event_type": "fix_confirmed",
+            "issue_id": issue_id,
+            "metadata": {
+                "fix_bundle_id": fix_bundle_id,
+                "fix_worked": fix_worked,
+                "feedback": feedback[:500] if feedback else None,
             },
-        )
+        }
+        if gim_id:
+            data["gim_id"] = gim_id
+        await insert_record(table="usage_events", data=data)
     except Exception as e:
         logger.warning(f"Failed to log confirmation event: {e}")
 
