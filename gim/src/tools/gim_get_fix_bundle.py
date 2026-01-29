@@ -216,7 +216,7 @@ async def _log_retrieval_event(
             },
         )
     except Exception as e:
-        logger.warning(f"Failed to log retrieval event: {e}")
+        logger.error(f"Failed to log retrieval event: {e}", exc_info=True)
 
 
 # Export for server registration

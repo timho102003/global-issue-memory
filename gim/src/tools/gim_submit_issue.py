@@ -569,7 +569,7 @@ async def _log_submission_event(
         )
     except Exception as e:
         # Log but don't fail the main operation
-        logger.warning(f"Failed to log submission event: {e}")
+        logger.error(f"Failed to log submission event: {e}", exc_info=True)
 
 
 # Export for server registration
