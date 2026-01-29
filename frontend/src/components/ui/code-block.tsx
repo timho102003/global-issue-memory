@@ -32,7 +32,7 @@ function CodeBlock({
     <div className="relative min-w-0 max-w-full">
       <pre
         className={cn(
-          "overflow-x-auto rounded-xl bg-[#1E1E1E] p-4 font-mono text-xs text-white sm:text-sm",
+          "w-0 min-w-full overflow-x-auto rounded-xl bg-[#1E1E1E] p-4 font-mono text-xs text-white sm:text-sm",
           className
         )}
         {...props}
