@@ -7,9 +7,9 @@ export function ProblemSection() {
   const problems = [
     {
       icon: Repeat,
-      title: "Repeat Debugging",
+      title: "Infinite Debugging - Burn Tokens",
       description:
-        "The same errors hit developers worldwide, each one burning tokens and time solving what's already been solved.",
+        "Vibe coders using similar AI coding assistants encounter identical errors. Each developer independently burns tokens and time solving what's already been solved elsewhere.",
       link: null,
     },
     {
