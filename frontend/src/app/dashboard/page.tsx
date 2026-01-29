@@ -79,7 +79,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Activity */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
+      <div className="flex flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
         <div className="flex items-center justify-between border-b border-border-soft px-5 py-4 sm:px-6 sm:py-5">
           <h2 className="text-[15px] font-semibold text-text-primary">Recent Activity</h2>
           <span className="text-[13px] font-medium text-text-secondary cursor-pointer transition-colors hover:text-text-primary">
