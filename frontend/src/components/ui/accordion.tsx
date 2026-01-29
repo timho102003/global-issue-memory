@@ -67,7 +67,7 @@ const AccordionItem = ({ value, className, children, ...props }: AccordionItemPr
     <div
       data-state={isOpen ? "open" : "closed"}
       className={cn(
-        "rounded-xl border border-border-light bg-white p-6",
+        "rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] transition-shadow duration-200 hover:shadow-[var(--shadow-card-hover)] sm:p-6",
         className
       )}
       {...props}
@@ -95,7 +95,7 @@ const AccordionTrigger = ({
       type="button"
       onClick={() => toggleItem(value)}
       className={cn(
-        "flex w-full items-center justify-between text-left font-medium text-text-primary",
+        "flex w-full items-center justify-between text-left text-[14px] font-medium text-text-primary sm:text-[15px]",
         className
       )}
       {...props}
@@ -127,7 +127,7 @@ const AccordionContent = ({
   if (!isOpen) return null;
 
   return (
-    <div className={cn("mt-4 text-text-secondary", className)} {...props}>
+    <div className={cn("mt-4 text-[13px] leading-relaxed text-text-secondary sm:text-[14px]", className)} {...props}>
       {children}
     </div>
   );

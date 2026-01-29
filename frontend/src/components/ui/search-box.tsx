@@ -18,9 +18,10 @@ const SearchBox = forwardRef<HTMLInputElement, SearchBoxProps>(
           ref={ref}
           type="search"
           className={cn(
-            "flex h-10 w-full rounded-xl border border-border bg-white pl-10 pr-4 py-2",
-            "text-sm placeholder:text-muted-foreground",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "flex h-9 w-full rounded-lg border border-border-light bg-white pl-9 pr-4 py-1.5",
+            "text-[13px] placeholder:text-text-muted transition-colors duration-150",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:border-border-medium",
+            "hover:border-border-medium",
             "disabled:cursor-not-allowed disabled:opacity-50",
             className
           )}

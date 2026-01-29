@@ -18,11 +18,12 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         <select
           ref={ref}
           className={cn(
-            "flex h-10 w-full appearance-none rounded-xl border bg-white px-4 py-2 pr-10",
-            "text-sm text-text-primary",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+            "flex h-9 w-full appearance-none rounded-lg border bg-white px-3 py-1.5 pr-9",
+            "text-[13px] text-text-primary transition-colors duration-150",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:border-border-medium",
+            "hover:border-border-medium",
             "disabled:cursor-not-allowed disabled:opacity-50",
-            error ? "border-destructive" : "border-border",
+            error ? "border-destructive" : "border-border-light",
             className
           )}
           {...props}
