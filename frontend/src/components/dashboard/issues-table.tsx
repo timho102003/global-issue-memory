@@ -105,8 +105,8 @@ export function IssuesTable({
                 </Badge>
               </TableCell>
               <TableCell className="text-text-secondary">
-                {issue.environment_coverage.length > 0
-                  ? issue.environment_coverage[0]
+                {issue.model_provider && issue.model_provider !== "unknown"
+                  ? issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)
                   : "-"}
               </TableCell>
               <TableCell className="text-text-secondary">

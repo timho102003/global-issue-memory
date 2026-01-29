@@ -113,6 +113,7 @@ export interface DashboardStats {
   issues_by_category: Record<string, number>;
   issues_by_provider: Record<string, number>;
   recent_activity: ActivityItem[];
+  issues_over_time: { date: string; count: number }[];
 }
 
 export interface ActivityItem {

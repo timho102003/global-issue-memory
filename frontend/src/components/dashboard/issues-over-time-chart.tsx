@@ -25,41 +25,33 @@ export function IssuesOverTimeChart() {
   const [showDropdown, setShowDropdown] = useState(false);
   const { data: stats } = useDashboardStats();
 
-  // Generate time series data from stats or use placeholder
-  const generateTimeSeriesData = () => {
+  // Use real time-series data from backend
+  const chartData = (() => {
+    const rawData = stats?.issues_over_time ?? [];
     const days = filter === "Last 7 days" ? 7 : filter === "Last 30 days" ? 30 : 90;
-    const data = [];
-    const today = new Date();
+    const sliced = rawData.slice(-days);
 
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(date.getDate() - i);
+    const data = sliced.map((item) => {
+      const date = new Date(item.date + "T00:00:00");
       const dayLabel = days <= 7
         ? date.toLocaleDateString("en-US", { weekday: "short" })
         : date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-
-      // Use real data if available, otherwise simulate based on total
-      const totalIssues = stats?.total_issues || 0;
-      const baseValue = totalIssues > 0
-        ? Math.max(1, Math.floor(totalIssues / days))
-        : 50;
-
-      // Deterministic pseudo-random to avoid SSR hydration mismatch
-      const seed = date.getDate() * 31 + date.getMonth() * 12;
-      const pseudoRandom = ((seed * 9301 + 49297) % 233280) / 233280;
-      const variance = Math.floor(pseudoRandom * Math.max(1, baseValue * 0.6));
-      const value = baseValue + variance;
-
-      data.push({
+      return {
         name: dayLabel,
-        value: Math.max(0, Math.floor(value)),
-        isHighlighted: i === Math.floor(days / 2), // Highlight middle bar
-      });
-    }
-    return data;
-  };
+        value: item.count,
+        isHighlighted: false,
+      };
+    });
 
-  const chartData = generateTimeSeriesData();
+    // Highlight the bar with maximum value
+    const maxVal = Math.max(...data.map((d) => d.value), 0);
+    if (maxVal > 0) {
+      const maxIdx = data.findIndex((d) => d.value === maxVal);
+      if (maxIdx >= 0) data[maxIdx].isHighlighted = true;
+    }
+
+    return data;
+  })();
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">

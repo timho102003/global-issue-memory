@@ -27,6 +27,9 @@ export interface MasterIssue {
   status: IssueStatus;
   created_at: string;
   updated_at: string;
+  model_provider?: string;
+  language?: string;
+  framework?: string;
 }
 
 export interface MasterIssueCreate {

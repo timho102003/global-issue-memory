@@ -29,7 +29,7 @@ export function TrustSignals({
         <ThumbsUp className="h-4 w-4 text-text-muted" />
         <span className="text-[13px] text-text-primary">
           <strong>{Math.round(successRate * 100)}%</strong>{" "}
-          <span className="text-text-secondary">success rate</span>
+          <span className="text-text-secondary">confidence</span>
         </span>
       </div>
       {lastConfirmedAt && (

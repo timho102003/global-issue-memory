@@ -83,6 +83,38 @@ export default function IssueDetailPage({
             </CardContent>
           </Card>
 
+          {/* Metadata */}
+          {(issue.model_provider || issue.language || issue.framework) && (
+            <Card>
+              <CardContent className="flex flex-wrap gap-x-6 gap-y-2 pt-5">
+                {issue.model_provider && issue.model_provider !== "unknown" && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-text-muted">Provider:</span>
+                    <span className="font-medium text-text-primary">
+                      {issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)}
+                    </span>
+                  </div>
+                )}
+                {issue.language && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-text-muted">Language:</span>
+                    <span className="font-medium text-text-primary">
+                      {issue.language.charAt(0).toUpperCase() + issue.language.slice(1)}
+                    </span>
+                  </div>
+                )}
+                {issue.framework && (
+                  <div className="flex items-center gap-2 text-sm">
+                    <span className="text-text-muted">Framework:</span>
+                    <span className="font-medium text-text-primary">
+                      {issue.framework.charAt(0).toUpperCase() + issue.framework.slice(1)}
+                    </span>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Code Block */}
           {fixBundleLoading ? (
             <Card>
