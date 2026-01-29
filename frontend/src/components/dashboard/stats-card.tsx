@@ -33,7 +33,7 @@ export function StatsCard({
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5",
+        "flex flex-col gap-2 overflow-visible rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5",
         className
       )}
     >
@@ -42,7 +42,7 @@ export function StatsCard({
         {tooltip && (
           <span className="group relative">
             <Info className="h-3.5 w-3.5 text-text-secondary/60 transition-colors group-hover:text-text-secondary" />
-            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 w-48 -translate-x-1/2 rounded-lg bg-text-primary px-3 py-2 text-[11px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-50 mb-1.5 w-48 -translate-x-1/2 rounded-lg bg-text-primary px-3 py-2 text-[11px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
               {tooltip}
             </span>
           </span>
