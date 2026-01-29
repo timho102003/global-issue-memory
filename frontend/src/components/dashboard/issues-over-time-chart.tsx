@@ -39,11 +39,16 @@ export function IssuesOverTimeChart() {
         : date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 
       // Use real data if available, otherwise simulate based on total
-      const baseValue = stats?.total_issues
-        ? Math.floor(stats.total_issues / days)
+      const totalIssues = stats?.total_issues || 0;
+      const baseValue = totalIssues > 0
+        ? Math.max(1, Math.floor(totalIssues / days))
         : 50;
-      const variance = Math.floor(Math.random() * (baseValue * 0.6));
-      const value = baseValue + variance - (baseValue * 0.3);
+
+      // Deterministic pseudo-random to avoid SSR hydration mismatch
+      const seed = date.getDate() * 31 + date.getMonth() * 12;
+      const pseudoRandom = ((seed * 9301 + 49297) % 233280) / 233280;
+      const variance = Math.floor(pseudoRandom * Math.max(1, baseValue * 0.6));
+      const value = baseValue + variance;
 
       data.push({
         name: dayLabel,
@@ -88,7 +93,7 @@ export function IssuesOverTimeChart() {
       </div>
       <div className="h-[180px] w-full">
         <ResponsiveContainer width="100%" height="100%">
-          <BarChart data={chartData} margin={{ top: 0, right: 0, left: -20, bottom: 0 }}>
+          <BarChart data={chartData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0EDE6" />
             <XAxis
               dataKey="name"
