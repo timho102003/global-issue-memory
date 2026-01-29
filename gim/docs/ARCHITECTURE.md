@@ -8,31 +8,31 @@ This document provides a comprehensive overview of GIM's architecture, design de
 ┌──────────────────────────────────────────────────────────────────┐
 │                         GIM MCP Server                           │
 │                                                                  │
-│  ┌────────────────┐         ┌─────────────────────────────┐   │
-│  │  FastMCP 2.x   │         │    Authentication Layer     │   │
-│  │   Transport    │◄────────┤  - GIM ID Management        │   │
-│  │  (stdio/HTTP)  │         │  - JWT Token Service        │   │
-│  └────────┬───────┘         │  - Rate Limiter             │   │
-│           │                 └─────────────────────────────┘   │
-│           │                                                    │
-│  ┌────────▼────────────────────────────────────────────────┐  │
-│  │                   MCP Tools Layer                       │  │
-│  │  - search_issues  - get_fix_bundle  - submit_issue     │  │
-│  │  - confirm_fix    - report_usage                       │  │
-│  └────────┬────────────────────────────────────────────────┘  │
-│           │                                                    │
-│  ┌────────▼────────────────────────────────────────────────┐  │
-│  │               Business Logic Layer                      │  │
-│  │  - Sanitization Pipeline   - Canonicalization          │  │
-│  │  - Deduplication Logic     - Analytics                 │  │
-│  └────────┬────────────────────────────────────────────────┘  │
-│           │                                                    │
-│  ┌────────▼────────────────────────────────────────────────┐  │
-│  │                  Storage Layer                          │  │
-│  │  - Supabase Client    - Qdrant Client                  │  │
-│  │  - Repository Pattern - Vector Operations              │  │
-│  └────────┬────────────────────────────────────────────────┘  │
-└───────────┼────────────────────────────────────────────────────┘
+│  ┌────────────────┐         ┌─────────────────────────────┐      │
+│  │  FastMCP 2.x   │         │    Authentication Layer     │      │
+│  │   Transport    │◄────────┤  - GIM ID Management        │      │
+│  │  (stdio/HTTP)  │         │  - JWT Token Service        │      │
+│  └────────┬───────┘         │  - Rate Limiter             │      │
+│           │                 └─────────────────────────────┘      │
+│           │                                                      │
+│  ┌────────▼────────────────────────────────────────────────┐     │
+│  │                   MCP Tools Layer                       │     │
+│  │  - search_issues  - get_fix_bundle  - submit_issue      │     │
+│  │  - confirm_fix    - report_usage                        │     │
+│  └────────┬────────────────────────────────────────────────┘     │ 
+│           │                                                      │
+│  ┌────────▼────────────────────────────────────────────────┐     │
+│  │               Business Logic Layer                      │     │
+│  │  - Sanitization Pipeline   - Canonicalization           │     │
+│  │  - Deduplication Logic     - Analytics                  │     │
+│  └────────┬────────────────────────────────────────────────┘     │
+│           │                                                      │
+│  ┌────────▼────────────────────────────────────────────────┐     │
+│  │                  Storage Layer                          │     │
+│  │  - Supabase Client    - Qdrant Client                   │     │
+│  │  - Repository Pattern - Vector Operations               │     │
+│  └────────┬────────────────────────────────────────────────┘     │
+└───────────┼──────────────────────────────────────────────────────┘
             │
             │
     ┌───────▼──────┐              ┌──────────────┐
@@ -42,6 +42,79 @@ This document provides a comprehensive overview of GIM's architecture, design de
     │ - Auth       │              │ - Embeddings │
     │ - Metadata   │              │ - Search     │
     └──────────────┘              └──────────────┘
+```
+
+
+```mermaid
+flowchart TD                                                                                                                                                                                                         
+      Start([AI Agent Encounters Error]) --> Search                                                                                                                                                                    
+                                                                                                                                                                                                                       
+      subgraph Search ["gim_search_issues"]
+          S1[Receive error query] --> S2[Quick sanitize: PII + Secret regex only]                                                                                                                                      
+          S2 --> S3[Generate embedding via Gemini]                                                                                                                                                                     
+          S3 --> S4[Cosine search in Qdrant]                                                                                                                                                                           
+          S4 --> S5{Matching issues found?}                                                                                                                                                                            
+      end                                                                                                                                                                                                              
+                                                                                                                                                                                                                       
+      S5 -->|Yes — returns issue list with<br/>similarity scores| GetFix                                                                                                                                               
+      S5 -->|No matches| Solve                                                                                                                                                                                         
+                                                                                                                                                                                                                       
+      subgraph GetFix ["gim_get_fix_bundle"]
+          G1[Receive issue_id] --> G2[Fetch fix_bundle from Supabase]                                                                                                                                                  
+          G2 --> G3[Return fix_steps, code_changes,<br/>environment_actions,<br/>verification_steps,<br/>confidence_score]                                                                                             
+      end                                                                                                                                                                                                              
+                                                                                                                                                                                                                       
+      GetFix --> ApplyFix[Agent applies the fix]                                                                                                                                                                       
+      ApplyFix --> Confirm                                                                                                                                                                                             
+                                                                                                                                                                                                                       
+      subgraph Confirm ["gim_confirm_fix"]
+
+          C1[Receive issue_id + success/failure] --> C2{Fix worked?}                                                                                                                                                   
+          C2 -->|Success| C3[Bayesian update:<br/>confidence_score UP<br/>verification_count++]                                                                                                                        
+          C2 -->|Failure| C4[Bayesian update:<br/>confidence_score DOWN]                                                                                                                                               
+          C3 --> C5[Log fix_confirmed event]                                                                                                                                                                           
+          C4 --> C5                                                                                                                                                                                                    
+      end                                                                                                                                                                                                              
+                                                                                                                                                                                                                       
+      Solve[Agent solves error manually] --> Submit                                                                                                                                                                    
+                                                                                                                                                                                                                       
+      subgraph Submit ["gim_submit_issue"]
+
+          direction TB                                                                                                                                                                                                 
+          T1[Receive error_message,<br/>root_cause, fix_steps] --> T2                                                                                                                                                  
+                                                                                                                                                                                                                       
+          subgraph Sanitize ["4-Layer Privacy Pipeline"]
+                                                                                                                                                                         
+              direction TB                                                                                                                                                                                             
+              P1["Layer 1: PII Scrubber (regex)<br/>emails, IPs, phones, SSNs,<br/>credit cards, paths"] --> P2                                                                                                        
+              P2["Layer 2: Secret Detector (regex)<br/>AWS keys, API keys, JWTs,<br/>private keys, DB strings,<br/>GitHub tokens"] --> P3                                                                              
+              P3["Layer 3: LLM Sanitizer (Gemini)<br/>company names, project names,<br/>domain identifiers"] --> P4                                                                                                    
+              P4["Layer 4: MRE Synthesizer (Gemini)<br/>strip business logic,<br/>genericize variable names"]                                                                                                          
+          end                                                                                                                                                                                                          
+                                                                                                                                                                                                                       
+          T2[Run sanitization pipeline] --> Sanitize                                                                                                                                                                   
+          Sanitize --> T3[Extract & normalize<br/>environment info]                                                                                                                                                    
+          T3 --> T4[Classify contribution type:<br/>validation / environment /<br/>model_quirk / symptom]                                                                                                              
+          T4 --> T5[Generate 3 embeddings:<br/>error_signature, root_cause,<br/>fix_summary]                                                                                                                           
+          T5 --> T6[Search Qdrant for<br/>similar issues ≥ 0.85]                                                                                                                                                       
+          T6 --> T7{Similar issue exists?}                                                                                                                                                                             
+                                                                                                                                                                                                                       
+          T7 -->|Yes| T8[Create child_issue<br/>Update master verification_count<br/>Update Qdrant vectors]                                                                                                            
+          T7 -->|No| T9[Create master_issue<br/>Create fix_bundle<br/>Upsert to Qdrant]                                                                                                                                
+                                                                                                                                                                                                                       
+          T8 --> T10[Log usage_event]                                                                                                                                                                                  
+          T9 --> T10                                                                                                                                                                                                   
+      end                                                                                                                                                                                                              
+                                                                                                                                                                                                                       
+      T10 --> Done([Issue stored & indexed])                                                                                                                                                                           
+      C5 --> Done2([Confidence updated])                                                                                                                                                                               
+                                                                                                                                                                                                                       
+      style Search fill:#1e293b,stroke:#3b82f6,color:#e2e8f0                                                                                                                                                           
+      style GetFix fill:#1e293b,stroke:#22c55e,color:#e2e8f0                                                                                                                                                           
+      style Confirm fill:#1e293b,stroke:#f59e0b,color:#e2e8f0                                                                                                                                                          
+      style Submit fill:#1e293b,stroke:#a855f7,color:#e2e8f0                                                                                                                                                           
+      style Sanitize fill:#0f172a,stroke:#ef4444,color:#e2e8f0
+
 ```
 
 ## Core Components
