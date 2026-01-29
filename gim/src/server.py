@@ -1561,6 +1561,14 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 if child.get("provider"):
                     contributors.add(child.get("provider"))
 
+            # Build issue_id to title mapping for activity items
+            issue_titles: dict = {}
+            for issue in all_issues:
+                issue_id = issue.get("id", "")
+                title = issue.get("title", "") or issue.get("canonical_error", "")
+                if issue_id and title:
+                    issue_titles[issue_id] = title[:80]
+
             # Transform recent events to activity items
             recent_activity = []
             for event in recent_events[:10]:
@@ -1571,10 +1579,14 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 elif event_type == "fix_confirmed":
                     activity_type = "confirmation"
 
+                issue_id = event.get("issue_id", "")
+                # Look up actual title from master issues
+                issue_title = issue_titles.get(issue_id, f"#{issue_id[:8]}" if issue_id else "Unknown issue")
+
                 recent_activity.append({
                     "id": event.get("id", ""),
                     "type": activity_type,
-                    "issue_title": event.get("issue_id", "")[:50] if event.get("issue_id") else "Unknown",
+                    "issue_title": issue_title,
                     "contributor": event.get("provider"),
                     "timestamp": event.get("created_at", ""),
                 })
@@ -1597,6 +1609,105 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 content=ErrorResponse(
                     error="server_error",
                     error_description="An unexpected error occurred while fetching stats",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/profile/stats/{gim_id}", methods=["GET"])
+    async def api_profile_stats(request: Request) -> JSONResponse:
+        """Get profile statistics for a GIM ID.
+
+        Args:
+            request: FastAPI request with gim_id path parameter.
+
+        Returns:
+            JSON with profile stats format.
+        """
+        gim_id = request.path_params.get("gim_id", "")
+        if not gim_id:
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="invalid_request",
+                    error_description="gim_id is required",
+                ).model_dump(),
+                status_code=400,
+            )
+
+        try:
+            # Query usage events for this GIM ID
+            all_events = await query_records(
+                table="usage_events",
+                filters={"provider": gim_id},
+                limit=10000,
+            )
+
+            # Count events by type
+            total_searches = sum(
+                1 for e in all_events if e.get("event_type") == "search_performed"
+            )
+            total_submissions = sum(
+                1 for e in all_events if e.get("event_type") == "issue_submitted"
+            )
+            total_confirmations = sum(
+                1 for e in all_events if e.get("event_type") == "fix_confirmed"
+            )
+
+            # Build contribution data for heatmap (last 365 days)
+            from datetime import datetime, timedelta
+            contributions: list = []
+            today = datetime.utcnow().date()
+
+            # Group events by date
+            event_dates: dict = {}
+            for event in all_events:
+                created_at = event.get("created_at", "")
+                if created_at:
+                    try:
+                        event_date = datetime.fromisoformat(
+                            created_at.replace("Z", "+00:00")
+                        ).date()
+                        date_str = event_date.isoformat()
+                        event_dates[date_str] = event_dates.get(date_str, 0) + 1
+                    except (ValueError, AttributeError):
+                        pass
+
+            # Generate 365 days of contribution data
+            for i in range(365):
+                date = today - timedelta(days=i)
+                date_str = date.isoformat()
+                contributions.append({
+                    "date": date_str,
+                    "count": event_dates.get(date_str, 0),
+                })
+
+            # Calculate rate limit usage (mock for now - would need real rate limit tracking)
+            daily_searches_used = sum(
+                1 for e in all_events
+                if e.get("event_type") == "search_performed"
+                and e.get("created_at", "").startswith(today.isoformat())
+            )
+            daily_searches_limit = 100
+
+            return JSONResponse(
+                content={
+                    "total_searches": total_searches,
+                    "total_submissions": total_submissions,
+                    "total_confirmations": total_confirmations,
+                    "total_reports": 0,  # Not tracked yet
+                    "contributions": contributions,
+                    "rate_limit": {
+                        "daily_searches_used": daily_searches_used,
+                        "daily_searches_limit": daily_searches_limit,
+                    },
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"Profile stats API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred while fetching profile stats",
                 ).model_dump(),
                 status_code=500,
             )
