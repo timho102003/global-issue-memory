@@ -7,20 +7,31 @@ interface ProviderListProps {
   data: { name: string; value: number }[];
 }
 
-/** Maps provider names to their logo file in /logos/ */
+/** Maps lowercase provider names to their logo file in /logos/ */
 const PROVIDER_LOGOS: Record<string, string> = {
-  Anthropic: "/logos/anthropic.svg",
-  OpenAI: "/logos/openai.svg",
-  xAI: "/logos/xai.svg",
-  Meta: "/logos/meta.svg",
-  Groq: "/logos/groq.svg",
+  anthropic: "/logos/anthropic.svg",
+  openai: "/logos/openai.svg",
+  xai: "/logos/xai.svg",
+  meta: "/logos/meta.svg",
+  groq: "/logos/groq.svg",
+};
+
+/** Display names for providers (API may return lowercase) */
+const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
+  anthropic: "Anthropic",
+  openai: "OpenAI",
+  xai: "xAI",
+  meta: "Meta",
+  groq: "Groq",
+  google: "Google",
+  mistral: "Mistral",
 };
 
 /** Fallback dot color for providers without a logo */
 const PROVIDER_COLORS: Record<string, string> = {
-  Google: "#4285F4",
-  Mistral: "#F54E42",
-  Others: "#D4D2CD",
+  google: "#4285F4",
+  mistral: "#F54E42",
+  others: "#D4D2CD",
 };
 
 /**
@@ -53,9 +64,9 @@ export function ProviderList({ data }: ProviderListProps) {
             >
               <div className="flex items-center gap-2.5">
                 <div className="flex h-5 w-5 shrink-0 items-center justify-center">
-                  {PROVIDER_LOGOS[provider.name] ? (
+                  {PROVIDER_LOGOS[provider.name.toLowerCase()] ? (
                     <Image
-                      src={PROVIDER_LOGOS[provider.name]}
+                      src={PROVIDER_LOGOS[provider.name.toLowerCase()]}
                       alt={provider.name}
                       width={20}
                       height={20}
@@ -66,12 +77,14 @@ export function ProviderList({ data }: ProviderListProps) {
                       className="h-2.5 w-2.5 rounded-full"
                       style={{
                         backgroundColor:
-                          PROVIDER_COLORS[provider.name] || PROVIDER_COLORS.Others,
+                          PROVIDER_COLORS[provider.name.toLowerCase()] || PROVIDER_COLORS.others,
                       }}
                     />
                   )}
                 </div>
-                <span className="text-[13px] text-text-primary">{provider.name}</span>
+                <span className="text-[13px] text-text-primary">
+                  {PROVIDER_DISPLAY_NAMES[provider.name.toLowerCase()] || provider.name}
+                </span>
               </div>
               <span className="text-[13px] font-semibold tabular-nums text-text-primary">
                 {provider.value.toLocaleString()}
