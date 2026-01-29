@@ -126,48 +126,54 @@ Vector collection storing sanitized issues with embeddings for semantic search.
         "size": 3072,  # gemini-embedding-001 dimension
         "distance": "Cosine"
     },
-    "optimizers_config": {
-        "default_segment_number": 2
-    },
-    "replication_factor": 1
+
+
+
+   "quantization_config": {
+           "scalar": {
+            "type": "int8",
+            "quantile": 0.99,
+            "always_ram": True
+        }
+    }
 }
 ```
+
+**Quantization Features**:
+- **INT8 scalar quantization**: Reduces memory usage by 4x while maintaining search quality
+- **always_ram=True**: Keeps quantized vectors in RAM for fast search (no disk I/O)
+- **Re-scoring enabled**: Uses `oversampling=2.0` to improve precision by re-ranking with full vectors
+- **Quantile=0.99**: Optimizes for 99th percentile of vector values
+
+**Recent Change (2026-01-29)**: Migrated from 3 named vectors to 1 combined vector. Old collections must be rebuilt using `scripts/migrate_vectors.py`.
 
 **Point Structure**:
 
 ```python
 {
     "id": "uuid-string",  # Issue ID
-    "vector": [0.1, 0.2, ...],  # 3072-dimensional embedding
+    "vector": [0.1, 0.2, ...],  # 3072-dimensional combined embedding
     "payload": {
         # Core metadata
         "issue_id": "uuid-string",
-        "canonical_error": "sanitized error message",
-        "canonical_fix": "sanitized fix description",
-        "created_at": "2026-01-27T10:30:00Z",
-        "updated_at": "2026-01-27T10:30:00Z",
-
-        # Context
-        "model": "claude-opus-4",
-        "provider": "anthropic",
-        "language": "python",
-        "framework": "fastapi",
-
-        # Statistics
-        "occurrence_count": 5,
-        "fix_success_rate": 0.95,
-        "confidence_score": 0.98,
-
-        # Full content (stored but not indexed)
-        "raw_error_hash": "sha256-hash",
-        "similar_issue_ids": ["uuid1", "uuid2"],
-
-        # Metadata
-        "tags": ["async", "error-handling"],
-        "environment_summary": {...}
+        "root_cause_category": "framework_specific",
+        "model_provider": "anthropic",
+        "status": "active"
     }
 }
 ```
+
+**Combined Vector Approach**: The single `vector` is a combined embedding of `error_message + root_cause + fix_summary` joined with `SECTION_SEPARATOR = "\n---\n"`. This approach:
+- Simplifies vector storage (1 vector instead of 3 named vectors)
+- Reduces memory and storage costs
+- Uses INT8 scalar quantization for 4x memory reduction
+- Maintains search quality through re-scoring with `oversampling=2.0`
+- Query vectors use same section structure for semantic alignment
+
+**Search Configuration Changes (2026-01-29)**:
+- Default `score_threshold`: 0.5 → 0.2 (broader matching)
+- Default `limit`: 5 → 10 (more results)
+- Removed `vector_name` parameter (no longer needed)
 
 **Indexes**:
 
@@ -273,6 +279,32 @@ psql $DATABASE_URL < migrations/001_create_gim_identities.sql
 
 - `001_create_gim_identities.sql`: Creates the gim_identities table
 
+### Vector Collection Migration
+
+**Qdrant Collection Rebuild (2026-01-29)**:
+
+After the vector storage refactor (3 named vectors → 1 combined vector), existing Qdrant collections must be rebuilt.
+
+**Migration Script**: `scripts/migrate_vectors.py`
+
+**Usage**:
+```bash
+# Preview migration (dry run)
+python -m scripts.migrate_vectors --dry-run
+
+# Run migration
+python -m scripts.migrate_vectors
+```
+
+**What it does**:
+1. Fetches all master_issues from Supabase
+2. Drops old Qdrant collection
+3. Recreates collection with new single-vector schema
+4. Re-generates combined embeddings (error + root_cause + fix_summary)
+5. Upserts all issues with new payload structure
+
+**Test Coverage**: `tests/test_scripts/test_migrate_vectors.py`
+
 ## Database Backup and Recovery
 
 ### Supabase Backup
@@ -359,6 +391,9 @@ except QdrantError as e:
 - Automatically creates collection if it doesn't exist
 - Vector size: 3072 (gemini-embedding-001)
 - Distance metric: Cosine similarity
+- Single combined vector per issue (error + root_cause + fix_summary)
+- INT8 scalar quantization with `always_ram=True` for fast search
+- Re-scoring: `oversampling=2.0` for high precision results
 - Optimized HNSW index for fast approximate nearest neighbor search
 
 ## Performance Considerations

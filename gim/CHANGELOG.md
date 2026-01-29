@@ -1,5 +1,74 @@
 # GIM Changelog
 
+## [Unreleased] - 2026-01-29
+
+### Changed - Vector Storage Optimization
+
+#### Refactor: Merge 3 Named Vectors into 1 Combined Vector with Scalar Quantization
+
+**Breaking Change**: Qdrant collection schema has changed. Existing collections must be migrated using `scripts/migrate_vectors.py`.
+
+**Embedding Service Changes** (`src/services/embedding_service.py`):
+- **Added `SECTION_SEPARATOR` constant**: `"\n---\n"` used to join sections
+- **New `generate_combined_embedding()`**: Replaces `generate_issue_embeddings()`
+  - Concatenates `error_message + root_cause + fix_summary` with separator
+  - Returns single 3072-dim vector instead of 3 separate vectors
+- **New `generate_search_embedding()`**: Wraps error-only queries in section structure
+  - Ensures query and stored vectors share same semantic space
+  - Format: `error_message + "" + ""` with separators
+
+**Qdrant Client Changes** (`src/db/qdrant_client.py`):
+- **Collection schema**: Single vector with INT8 scalar quantization
+  - `quantization_config`: INT8 scalar, quantile=0.99, always_ram=True
+  - 4x memory reduction while maintaining search quality
+- **`upsert_issue_vectors()`**: Now takes single `vector` param instead of 3
+- **`search_similar_issues()`**:
+  - Removed `vector_name` parameter (no longer needed)
+  - Changed default `score_threshold` from 0.5 to 0.2 (broader matching)
+  - Changed default `limit` from 5 to 10 (more results)
+  - Added quantization re-scoring with `oversampling=2.0` for precision
+
+**Tool Updates**:
+- `gim_search_issues.py`: Uses `generate_search_embedding()`
+- `gim_submit_issue.py`: Uses `generate_combined_embedding()`
+
+**Migration Benefits**:
+- **Simpler API**: 1 vector per issue instead of 3 named vectors
+- **Memory efficiency**: 4x reduction via INT8 quantization
+- **Fast search**: Quantized vectors kept in RAM (no disk I/O)
+- **High precision**: Re-scoring with oversampling maintains quality
+- **Semantic alignment**: Query and storage use same section structure
+
+#### New Migration Script
+
+**Added `scripts/migrate_vectors.py`**:
+- Fetches all master_issues from Supabase with fix summaries
+- Drops old Qdrant collection
+- Recreates collection with new single-vector schema
+- Re-generates combined embeddings for all issues
+- Upserts with new payload structure
+- Supports `--dry-run` flag for preview
+
+**Usage**:
+```bash
+# Preview migration
+python -m scripts.migrate_vectors --dry-run
+
+# Run migration
+python -m scripts.migrate_vectors
+```
+
+**Test Coverage**: `tests/test_scripts/test_migrate_vectors.py`
+
+### Changed - Configuration
+
+#### JWT Token TTL Increase
+
+**Configuration Change** (`src/config.py`):
+- `access_token_ttl_hours` default changed from 1 to 24 hours
+- Reduces token refresh frequency for better UX
+- Still configurable via environment variable
+
 ## [Unreleased] - 2026-01-27
 
 ### Added - Infrastructure Improvements (Phases 1-4)

@@ -413,12 +413,17 @@ CREATE TABLE issue_usage_stats (
 - Embedding model: Google Gemini `gemini-embedding-001`
 - Dimensions: 3072
 - Distance metric: Cosine similarity
+- Quantization: INT8 scalar with `always_ram=True`
+- Re-scoring: `oversampling=2.0` for high precision
 
-**Stored Vectors:**
-- Error signature embedding
-- Root cause embedding
-- Fix summary embedding
-- Environment embedding
+**Stored Vectors (Refactored 2026-01-29):**
+- **Single combined vector** per issue (error + root_cause + fix_summary)
+- Replaced 3 named vectors for simplicity and efficiency
+- Sections joined with `SECTION_SEPARATOR = "\n---\n"`
+- 4x memory reduction via INT8 scalar quantization
+- Fast search with quantized vectors in RAM
+
+**Migration**: Existing collections must be rebuilt using `scripts/migrate_vectors.py`
 
 **Payload:**
 ```json
@@ -444,11 +449,28 @@ CREATE TABLE issue_usage_stats (
 - Max input tokens: 2048
 - Use case: Semantic similarity for issue matching
 
-**Usage:**
-- Generate embeddings for error descriptions
-- Generate embeddings for root causes
-- Generate embeddings for fix summaries
-- Generate embeddings for environment descriptions
+**Embedding Strategy:**
+
+**Combined embedding** (storage):
+```python
+SECTION_SEPARATOR = "\n---\n"
+combined_text = SECTION_SEPARATOR.join([error_message, root_cause, fix_summary])
+vector = generate_combined_embedding(combined_text)
+```
+
+**Search embedding** (query):
+```python
+# Wrap query in same structure for semantic alignment
+search_text = SECTION_SEPARATOR.join([error_message, "", ""])
+vector = generate_search_embedding(search_text)
+```
+
+**Benefits (Post-Refactor 2026-01-29):**
+- 1 vector instead of 3 named vectors (simplified from previous approach)
+- Simpler API and storage model (removed `vector_name` parameter)
+- 4x memory reduction with INT8 quantization
+- Query/stored vectors share semantic space
+- Search defaults updated: `score_threshold` 0.5 → 0.2, `limit` 5 → 10
 
 ### 6. MCP Tools (`src/tools/`)
 
@@ -718,7 +740,7 @@ Response
 **Token Requirements:**
 - Access tokens are HS256-signed JWTs
 - Tokens validated using shared secret key (min 32 chars)
-- Short expiration (1 hour default, configurable)
+- Expiration: 24 hours default (changed from 1 hour on 2026-01-29, configurable via `access_token_ttl_hours`)
 - GIM IDs used as refresh mechanism (no separate refresh tokens)
 
 **GIM ID Security:**

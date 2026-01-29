@@ -210,9 +210,12 @@ python main.py
 - ✅ **Infrastructure improvements** (custom exceptions, centralized logging, thread-safe clients)
 - ✅ **Enhanced metadata services** (contribution classifier, environment extractor, model parser)
 - ✅ **Security hardening** (generic error messages, structured error handling)
+- ✅ **Vector storage optimization** (single combined vector with INT8 scalar quantization, 2026-01-29)
+- ✅ **Migration tooling** (`scripts/migrate_vectors.py` for collection rebuild, 2026-01-29)
+- ✅ **Configuration improvements** (JWT TTL increased to 24 hours, 2026-01-29)
 - ⏳ Database schema & migrations (Supabase)
 - ⏳ Canonicalization engine (root cause classification, clustering)
-- ⏳ Search implementation with multi-vector ranking
+- ⏳ Search implementation with combined vector ranking
 - ⏳ Complete tool integrations with database
 
 ### Upcoming
@@ -242,8 +245,8 @@ See [API Reference](docs/API.md) for detailed tool schemas.
 - **Python 3.12+** - Core language
 - **Pydantic** - Data validation and settings
 - **Supabase** - PostgreSQL database
-- **Qdrant** - Vector database for embeddings
-- **Google Gemini** - Embeddings (text-embedding-004) & LLM sanitization (gemini-2.5-flash-preview)
+- **Qdrant** - Vector database with INT8 scalar quantization (single combined vector per issue)
+- **Google Gemini** - Embeddings (gemini-embedding-001, 3072-dim) & LLM sanitization (gemini-2.5-flash-preview)
 
 ### Frontend
 - **Next.js 15** - React framework with App Router

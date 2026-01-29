@@ -420,9 +420,18 @@ Vector database for semantic search.
 
 **Features**:
 - 3072-dimensional vectors (gemini-embedding-001)
+- **Single combined vector** per issue (error + root_cause + fix_summary) - refactored from 3 named vectors (2026-01-29)
+- INT8 scalar quantization with `always_ram=True` for fast search
+- Re-scoring with `oversampling=2.0` for high precision
 - Cosine similarity distance
 - Rich payload filtering
 - Scalable cloud deployment
+
+**Recent Changes (2026-01-29)**:
+- Migrated from 3 named vectors to 1 combined vector
+- Default `score_threshold` changed: 0.5 → 0.2
+- Default `limit` changed: 5 → 10
+- Removed `vector_name` parameter from search API
 
 **Implementation**: `src/db/qdrant_client.py`
 
@@ -546,12 +555,31 @@ LLM provides confidence score (0-1) for sanitization quality.
 
 **Model**: gemini-embedding-001 (Google)
 **Dimensions**: 3072
-**Input**: Canonical error message + fix description
 
+**Combined Embedding Approach (Refactored 2026-01-29)**:
+
+GIM uses a single combined embedding instead of multiple separate vectors. This replaced the previous approach of 3 named vectors.
+
+**For storage** (`generate_combined_embedding`):
 ```python
-text = f"{canonical_error}\n\n{canonical_fix}"
-embedding = generate_embedding(text)  # [3072 floats]
+SECTION_SEPARATOR = "\n---\n"
+combined_text = SECTION_SEPARATOR.join([error_message, root_cause, fix_summary])
+embedding = generate_embedding(combined_text)  # [3072 floats]
 ```
+
+**For search** (`generate_search_embedding`):
+```python
+# Wrap query in same structure to share semantic space
+search_text = SECTION_SEPARATOR.join([error_message, "", ""])
+embedding = generate_embedding(search_text)  # [3072 floats]
+```
+
+**Benefits**:
+- **1 vector instead of 3**: Simpler storage and search (replaced named vectors)
+- **4x memory reduction**: INT8 scalar quantization with `always_ram=True`
+- **Semantic alignment**: Query and stored vectors use same section structure
+- **Fast search**: Quantized vectors in RAM, re-scoring with `oversampling=2.0` for precision
+- **Migration tool**: `scripts/migrate_vectors.py` for collection rebuild
 
 ### Search Strategy
 
@@ -559,24 +587,28 @@ embedding = generate_embedding(text)  # [3072 floats]
 
 **Distance Metric**: Cosine similarity
 
-**Filters Applied**:
-- Model (optional)
-- Provider (optional)
-- Language (optional)
-- Framework (optional)
+**Quantization and Re-scoring**:
+- INT8 scalar quantization reduces memory by 4x
+- `always_ram=True` keeps quantized vectors in RAM (no disk I/O)
+- Re-scoring with `oversampling=2.0` improves precision
+- Search retrieves 2x candidates, re-scores with full vectors, returns top N
+
+**Search Parameters (Updated 2026-01-29)**:
+- Default limit: 10 results (changed from 5)
+- Default score_threshold: 0.2 (changed from 0.5 for broader matching)
+- Removed `vector_name` parameter (no longer needed with single vector)
+- Filters: root_cause_category, model_provider, status
 
 **Example Query**:
 
 ```python
-results = qdrant_client.search(
-    collection_name="gim_issues",
+results = await search_similar_issues(
     query_vector=embedding,
-    limit=5,
-    query_filter={
-        "must": [
-            {"key": "language", "match": {"value": "python"}},
-            {"key": "framework", "match": {"value": "fastapi"}}
-        ]
+    limit=10,
+    score_threshold=0.2,
+    filters={
+        "model_provider": "anthropic",
+        "status": "active"
     }
 )
 ```
@@ -688,7 +720,7 @@ All I/O operations are async:
 ### Authentication Security
 
 1. **JWT Signing**: HS256 with 32+ character secret
-2. **Token Expiration**: 1 hour default (configurable)
+2. **Token Expiration**: 24 hours default (changed from 1 hour on 2026-01-29, configurable via `access_token_ttl_hours`)
 3. **No Token Storage**: Stateless tokens
 4. **Secret Rotation**: Periodic JWT secret updates
 

@@ -70,7 +70,7 @@ flowchart TD
 
         G3 --> PRIVACY
         PRIVACY --> G4["quick_sanitize(root_cause)<br/>quick_sanitize(fix_steps)"]
-        G4 --> G5["generate_issue_embeddings()<br/>3 vectors: error, cause, fix"]
+        G4 --> G5["generate_combined_embedding()<br/>1 vector: error + cause + fix"]
         G5 --> G6["search_similar_issues(Qdrant)<br/>threshold >= 0.85"]
         G6 --> G7{Similar issue?}
         G7 -->|Yes| G8["Create child_issue<br/>Link to master_issue<br/>Classify contribution_type"]
@@ -171,9 +171,16 @@ Connection: [CONNECTION_STRING_REDACTED]
 ["file_path_detected", "api_key_detected", "connection_string_detected"]
 ```
 
-### Block 1b: `generate_embedding(sanitized_query)`
+### Block 1b: `generate_search_embedding(sanitized_query)`
 
-Calls Gemini `gemini-embedding-001` with the sanitized text.
+Calls `generate_search_embedding()` which wraps the query in the same section structure used for storage.
+
+**Processing:**
+```python
+SECTION_SEPARATOR = "\n---\n"
+search_text = SECTION_SEPARATOR.join([sanitized_query, "", ""])
+embedding = generate_embedding(search_text)
+```
 
 **Output:**
 
@@ -183,7 +190,12 @@ Calls Gemini `gemini-embedding-001` with the sanitized text.
 
 ### Block 1c: `search_similar_issues(Qdrant)`
 
-Cosine similarity search against the `error_signature` named vector.
+Cosine similarity search against the combined embedding vector using INT8 scalar quantization with re-scoring (`oversampling=2.0`).
+
+**Recent Changes (2026-01-29)**:
+- Single combined vector (replaced 3 named vectors)
+- Default `score_threshold`: 0.2 (was 0.5)
+- Default `limit`: 10 (was 5)
 
 **Output (in this scenario: no matches)**
 
@@ -623,29 +635,35 @@ ContributionType.ENVIRONMENT  # = "environment"
 
 ---
 
-### Block 3f: Generate Issue Embeddings
+### Block 3f: Generate Combined Embedding
+
+**New Approach (2026-01-29)**: Uses `generate_combined_embedding()` which creates a single vector from all three components.
 
 **Input:**
 
 ```python
-generate_issue_embeddings(
+generate_combined_embedding(
     error_message='File "[PATH_REDACTED]", line 14, in create_user\n    result = await db.execute(query, user.dict())\nAttributeError: \'UserCreate\' object has no attribute \'dict\'. Did you mean: \'model_dump\'?...',
     root_cause="Pydantic v2 removed the .dict() method from BaseModel...",
     fix_summary="Replace .dict() with .model_dump() for Pydantic v2 compatibility",
 )
 ```
 
+**Processing:**
+
+```python
+SECTION_SEPARATOR = "\n---\n"
+combined_text = SECTION_SEPARATOR.join([error_message, root_cause, fix_summary])
+embedding = generate_embedding(combined_text)
+```
+
 **Output:**
 
 ```json
-{
-  "error_signature": [0.0234, -0.1892, 0.0451, ..., -0.0789],
-  "root_cause":      [0.1102, -0.0334, 0.2871, ...,  0.0412],
-  "fix_summary":     [0.0891,  0.1456, 0.0023, ..., -0.1203]
-}
+[0.0234, -0.1892, 0.0451, ..., -0.0789]
 ```
 
-*(Each vector: 3072 floats from Gemini `gemini-embedding-001`)*
+*(Single 3072-dimensional vector from Gemini `gemini-embedding-001`, replacing 3 separate named vectors)*
 
 ---
 
@@ -655,12 +673,13 @@ generate_issue_embeddings(
 
 ```python
 search_similar_issues(
-    query_vector=embeddings["error_signature"],  # 3072-dim
-    vector_name="error_signature",
-    limit=5,
-    score_threshold=0.85,  # from settings.similarity_merge_threshold
+    query_vector=embedding,  # 3072-dim combined vector
+    limit=10,  # default changed from 5 (2026-01-29)
+    score_threshold=0.2,  # default changed from 0.5 for broader matching (2026-01-29)
 )
 ```
+
+**Note:** Uses INT8 scalar quantization with re-scoring (`oversampling=2.0`) for fast, precise search. Single vector replaces previous 3 named vectors approach.
 
 **Output (Scenario A: No match -- new issue):**
 
@@ -719,14 +738,14 @@ _classify_root_cause("Pydantic v2 removed the .dict() method from BaseModel...")
 
 ### Block 3i: Upsert Vectors to Qdrant
 
+**New API (2026-01-29)**: `upsert_issue_vectors()` now takes single `vector` parameter instead of 3 separate vectors.
+
 **Input:**
 
 ```python
 upsert_issue_vectors(
     issue_id="f7e8d9c0-b1a2-3456-7890-abcdef012345",
-    error_signature_vector=[0.0234, -0.1892, ...],  # 3072-dim
-    root_cause_vector=[0.1102, -0.0334, ...],        # 3072-dim
-    fix_summary_vector=[0.0891, 0.1456, ...],        # 3072-dim
+    vector=[0.0234, -0.1892, ...],  # 3072-dim combined vector (was 3 named vectors)
     payload={
         "issue_id": "f7e8d9c0-b1a2-3456-7890-abcdef012345",
         "root_cause_category": "framework_specific",
@@ -740,11 +759,11 @@ upsert_issue_vectors(
 
 ```
 Collection: gim_issues
-Point ID: <uuid>
-Named Vectors:
-  error_signature: [0.0234, -0.1892, ...] (3072-dim, cosine)
-  root_cause:      [0.1102, -0.0334, ...] (3072-dim, cosine)
-  fix_summary:     [0.0891,  0.1456, ...] (3072-dim, cosine)
+Point ID: "f7e8d9c0-b1a2-3456-7890-abcdef012345"
+Vector (combined): [0.0234, -0.1892, ...] (3072-dim, cosine)
+  - Single vector (replaced 3 named vectors: error_signature, root_cause, fix_summary)
+  - Stored as INT8 quantized in RAM (4x memory reduction)
+  - Re-scoring enabled with oversampling=2.0
 Payload:
   issue_id: "f7e8d9c0-b1a2-3456-7890-abcdef012345"
   root_cause_category: "framework_specific"
