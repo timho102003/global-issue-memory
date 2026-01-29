@@ -107,7 +107,7 @@ export async function confirmFix(
 export interface DashboardStats {
   total_issues: number;
   resolved_issues: number;
-  active_issues: number;
+  unverified_issues: number;
   total_contributors: number;
   issues_by_category: Record<string, number>;
   issues_by_provider: Record<string, number>;

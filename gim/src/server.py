@@ -1539,8 +1539,8 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
 
             # Calculate stats
             total_issues = len(all_issues)
-            active_issues = sum(1 for i in all_issues if i.get("verification_count", 0) > 0)
-            resolved_issues = sum(1 for i in all_issues if i.get("verification_count", 0) >= 3)
+            resolved_issues = sum(1 for i in all_issues if i.get("verification_count", 0) >= 1)
+            unverified_issues = total_issues - resolved_issues
 
             # Group by category
             issues_by_category: dict = {}
@@ -1599,7 +1599,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 content={
                     "total_issues": total_issues,
                     "resolved_issues": resolved_issues,
-                    "active_issues": active_issues,
+                    "unverified_issues": unverified_issues,
                     "total_contributors": len(contributors),
                     "issues_by_category": issues_by_category,
                     "issues_by_provider": issues_by_provider,

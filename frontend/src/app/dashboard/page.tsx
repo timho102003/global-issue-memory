@@ -16,14 +16,14 @@ export default function DashboardPage() {
   // Calculate percentages for badges
   const totalIssues = stats?.total_issues || 0;
   const resolvedIssues = stats?.resolved_issues || 0;
-  const pendingIssues = stats?.active_issues || 0;
+  const unverifiedIssues = stats?.unverified_issues || 0;
   const totalContributors = stats?.total_contributors || 0;
 
   const resolvedPercent = totalIssues > 0
     ? ((resolvedIssues / totalIssues) * 100).toFixed(1)
     : "0";
-  const pendingPercent = totalIssues > 0
-    ? ((pendingIssues / totalIssues) * 100).toFixed(1)
+  const unverifiedPercent = totalIssues > 0
+    ? ((unverifiedIssues / totalIssues) * 100).toFixed(1)
     : "0";
 
   // Transform provider data for list
@@ -51,22 +51,24 @@ export default function DashboardPage() {
         <StatsCard
           title="Total Issues"
           value={formatNumber(totalIssues)}
-          badge={{ text: "+12%", variant: "success" }}
+          tooltip="Total number of unique master issues tracked"
         />
         <StatsCard
-          title="Resolved"
+          title="Verified"
           value={formatNumber(resolvedIssues)}
           badge={{ text: `${resolvedPercent}%`, variant: "success" }}
+          tooltip="Issues with at least one verification (verification_count >= 1)"
         />
         <StatsCard
-          title="Pending"
-          value={formatNumber(pendingIssues)}
-          badge={{ text: `${pendingPercent}%`, variant: "warning" }}
+          title="Unverified"
+          value={formatNumber(unverifiedIssues)}
+          badge={{ text: `${unverifiedPercent}%`, variant: "warning" }}
+          tooltip="Issues with no verifications yet"
         />
         <StatsCard
           title="Contributors"
           value={formatNumber(totalContributors)}
-          badge={{ text: "+8 new", variant: "purple" }}
+          tooltip="Unique providers that have submitted child issues"
         />
       </div>
 

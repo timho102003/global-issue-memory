@@ -119,8 +119,8 @@ class DashboardStats(BaseModel):
 
     Attributes:
         total_issues: Total number of master issues.
-        resolved_issues: Number of resolved/verified issues.
-        active_issues: Number of currently active issues.
+        resolved_issues: Issues verified at least once (verification_count >= 1).
+        unverified_issues: Issues with no verifications yet.
         total_contributors: Number of unique contributors.
         issues_by_category: Count of issues per root cause category.
         issues_by_provider: Count of issues per model provider.
@@ -129,7 +129,7 @@ class DashboardStats(BaseModel):
 
     total_issues: int = Field(ge=0)
     resolved_issues: int = Field(ge=0)
-    active_issues: int = Field(ge=0)
+    unverified_issues: int = Field(ge=0)
     total_contributors: int = Field(ge=0)
     issues_by_category: dict = Field(default_factory=dict)
     issues_by_provider: dict = Field(default_factory=dict)

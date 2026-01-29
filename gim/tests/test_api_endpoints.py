@@ -501,7 +501,7 @@ class TestDashboardStatsEndpoint:
                 data = response.json()
                 assert "total_issues" in data
                 assert "resolved_issues" in data
-                assert "active_issues" in data
+                assert "unverified_issues" in data
                 assert "total_contributors" in data
                 assert "issues_by_category" in data
                 assert "issues_by_provider" in data
@@ -528,7 +528,60 @@ class TestDashboardStatsEndpoint:
                 data = response.json()
                 assert data["total_issues"] == 0
                 assert data["resolved_issues"] == 0
-                assert data["active_issues"] == 0
+                assert data["unverified_issues"] == 0
+
+    @pytest.mark.asyncio
+    async def test_dashboard_stats_resolved_threshold_boundary(self):
+        """Test that verification_count >= 1 counts as resolved."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        mock_issues = [
+            {
+                "id": str(uuid4()),
+                "root_cause_category": "missing_dependency",
+                "model_provider": "anthropic",
+                "verification_count": 0,
+            },
+            {
+                "id": str(uuid4()),
+                "root_cause_category": "configuration_error",
+                "model_provider": "openai",
+                "verification_count": 1,
+            },
+            {
+                "id": str(uuid4()),
+                "root_cause_category": "runtime_error",
+                "model_provider": "anthropic",
+                "verification_count": 5,
+            },
+        ]
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                return mock_issues
+            elif table == "usage_events":
+                return []
+            elif table == "child_issues":
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.get("/dashboard/stats")
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["total_issues"] == 3
+                assert data["resolved_issues"] == 2
+                assert data["unverified_issues"] == 1
 
 
 class TestCORSMiddleware:

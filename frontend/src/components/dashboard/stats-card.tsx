@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { Info } from "lucide-react";
 
 type BadgeVariant = "success" | "warning" | "purple";
 
@@ -9,6 +10,7 @@ interface StatsCardProps {
     text: string;
     variant: BadgeVariant;
   };
+  tooltip?: string;
   className?: string;
 }
 
@@ -25,6 +27,7 @@ export function StatsCard({
   title,
   value,
   badge,
+  tooltip,
   className,
 }: StatsCardProps) {
   return (
@@ -34,7 +37,17 @@ export function StatsCard({
         className
       )}
     >
-      <span className="text-[13px] font-medium text-text-secondary">{title}</span>
+      <span className="inline-flex items-center gap-1 text-[13px] font-medium text-text-secondary">
+        {title}
+        {tooltip && (
+          <span className="group relative">
+            <Info className="h-3.5 w-3.5 text-text-secondary/60 transition-colors group-hover:text-text-secondary" />
+            <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1.5 w-48 -translate-x-1/2 rounded-lg bg-text-primary px-3 py-2 text-[11px] leading-snug text-white opacity-0 shadow-lg transition-opacity duration-150 group-hover:opacity-100">
+              {tooltip}
+            </span>
+          </span>
+        )}
+      </span>
       <div className="flex items-center gap-3">
         <span className="text-3xl font-bold tracking-tight text-text-primary">{value}</span>
         {badge && (
