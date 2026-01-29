@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import Link from "next/link";
+
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { CodeBlock } from "@/components/ui/code-block";
@@ -17,101 +17,7 @@ import { FixBundleCard } from "@/components/issue/fix-bundle-card";
 import { TrustSignals } from "@/components/issue/trust-signals";
 import { useIssue, useFixBundle } from "@/lib/hooks/use-issues";
 import { CATEGORY_DISPLAY } from "@/types";
-import type { RootCauseCategory, FixBundle } from "@/types";
-
-// Mock data for development
-const mockIssue = {
-  id: "1",
-  canonical_title: "LangChain @tool decorator causing schema validation errors",
-  description:
-    "The @tool decorator in LangChain fails to generate valid JSON schema for certain Python type hints, particularly when using Optional types or complex Pydantic models. This causes tool calling to fail with schema validation errors.",
-  root_cause_category: "api_integration" as RootCauseCategory,
-  root_cause_subcategory: "Tool Calling",
-  confidence_score: 0.92,
-  child_issue_count: 24,
-  environment_coverage: ["Claude 3", "GPT-4"],
-  verification_count: 156,
-  last_confirmed_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  status: "active" as const,
-  created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-  updated_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-};
-
-const mockFixBundle: FixBundle = {
-  id: "fix-1",
-  master_issue_id: "1",
-  summary: "Use explicit args_schema parameter with Pydantic BaseModel instead of relying on type inference for complex types",
-  fix_steps: [
-    "Create a Pydantic BaseModel class for your tool arguments",
-    "Pass the model as args_schema parameter to @tool decorator",
-    "Remove Optional type hints from the function signature if using args_schema",
-  ],
-  code_changes: [],
-  env_actions: [
-    {
-      order: 1,
-      type: "upgrade",
-      command: "pip install langchain>=0.1.0",
-      explanation: "Upgrade to latest LangChain with fixed schema generation",
-    },
-    {
-      order: 2,
-      type: "config",
-      command: 'export LANGCHAIN_TRACING_V2="false"',
-      explanation: "Disable tracing to avoid schema conflicts",
-    },
-  ],
-  constraints: {
-    working_versions: {
-      langchain: ">=0.1.0",
-      python: ">=3.9",
-    },
-    incompatible_with: ["langchain<0.0.350"],
-    required_environment: ["Python 3.9+"],
-  },
-  verification: [
-    {
-      order: 1,
-      command: "python -c \"from langchain.tools import tool; print('OK')\"",
-      expected_output: "OK",
-    },
-  ],
-  code_fix: `from langchain.tools import tool
-from typing import Optional
-
-# Use explicit schema instead of type inference
-@tool(args_schema=MyArgsSchema)
-def my_tool(query: str) -> str:
-    """Tool description here."""
-    return f"Result: {query}"`,
-  version: 2,
-  is_current: true,
-  created_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  updated_at: new Date(Date.now() - 1000 * 60 * 60).toISOString(),
-};
-
-const mockCodeExample = `from langchain.tools import tool
-from typing import Optional
-from pydantic import BaseModel
-
-class QueryArgs(BaseModel):
-    query: str
-    limit: Optional[int] = 10
-
-@tool
-def search_docs(query: str, limit: Optional[int] = 10) -> str:
-    """Search the documentation.
-
-    Args:
-        query: The search query
-        limit: Max results to return
-    """
-    # This fails with schema validation error
-    return f"Found {limit} results for: {query}"
-
-# Error: Invalid schema generated for Optional[int]
-# Expected: {"type": "integer"}
-# Got: {"anyOf": [{"type": "integer"}, {"type": "null"}]}`;
+import type { RootCauseCategory } from "@/types";
 
 /**
  * Issue Detail page matching GIM.pen design (qnZGX).
@@ -122,13 +28,14 @@ export default function IssueDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const { data: issue } = useIssue(id);
-  const { data: fixBundle } = useFixBundle(id);
+  const { data: issue, isLoading: issueLoading } = useIssue(id);
+  const { data: fixBundle, isLoading: fixBundleLoading } = useFixBundle(id);
 
-  // Use mock data if no real data
-  const displayIssue = issue || mockIssue;
-  const displayFixBundle = fixBundle || mockFixBundle;
-  const categoryInfo = CATEGORY_DISPLAY[displayIssue.root_cause_category];
+  if (issueLoading || !issue) {
+    return <IssueDetailSkeleton />;
+  }
+
+  const categoryInfo = CATEGORY_DISPLAY[issue.root_cause_category];
 
   return (
     <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
@@ -140,13 +47,13 @@ export default function IssueDetailPage({
           </BreadcrumbItem>
           <BreadcrumbSeparator>/</BreadcrumbSeparator>
           <BreadcrumbItem>
-            <BreadcrumbLink href={`/dashboard/issues?category=${displayIssue.root_cause_category}`}>
+            <BreadcrumbLink href={`/dashboard/issues?category=${issue.root_cause_category}`}>
               {categoryInfo.label}
             </BreadcrumbLink>
           </BreadcrumbItem>
           <BreadcrumbSeparator>/</BreadcrumbSeparator>
           <BreadcrumbItem>
-            <BreadcrumbPage>{displayIssue.canonical_title}</BreadcrumbPage>
+            <BreadcrumbPage>{issue.canonical_title}</BreadcrumbPage>
           </BreadcrumbItem>
         </BreadcrumbList>
       </Breadcrumb>
@@ -160,10 +67,10 @@ export default function IssueDetailPage({
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
                 <CardTitle className="text-lg leading-snug sm:text-xl">
-                  {displayIssue.canonical_title}
+                  {issue.canonical_title}
                 </CardTitle>
                 <Badge
-                  category={displayIssue.root_cause_category.replace("_", "-") as "environment" | "model" | "api" | "codegen" | "framework"}
+                  category={issue.root_cause_category.replace("_", "-") as "environment" | "model" | "api" | "codegen" | "framework"}
                 >
                   {categoryInfo.label}
                 </Badge>
@@ -171,34 +78,126 @@ export default function IssueDetailPage({
             </CardHeader>
             <CardContent>
               <p className="text-sm leading-relaxed text-text-secondary">
-                {displayIssue.description}
+                {issue.description}
               </p>
             </CardContent>
           </Card>
 
           {/* Code Block */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{displayFixBundle.code_fix ? "Code Fix" : "Example Code"}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <CodeBlock code={displayFixBundle.code_fix || mockCodeExample} language="python" />
-            </CardContent>
-          </Card>
+          {fixBundleLoading ? (
+            <Card>
+              <CardHeader>
+                <div className="h-5 w-24 animate-pulse rounded bg-bg-tertiary" />
+              </CardHeader>
+              <CardContent>
+                <div className="h-40 w-full animate-pulse rounded-xl bg-bg-tertiary" />
+              </CardContent>
+            </Card>
+          ) : fixBundle?.code_fix ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>Code Fix</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <CodeBlock code={fixBundle.code_fix} language="python" />
+              </CardContent>
+            </Card>
+          ) : null}
 
           {/* Trust Signals */}
           <TrustSignals
-            verificationCount={displayIssue.verification_count}
-            successRate={displayIssue.confidence_score}
-            lastConfirmedAt={displayIssue.last_confirmed_at}
+            verificationCount={issue.verification_count}
+            successRate={issue.confidence_score}
+            lastConfirmedAt={issue.last_confirmed_at}
           />
         </div>
 
         {/* Right Column - Fix Bundle */}
         <div className="w-full lg:w-[380px]">
-          <FixBundleCard fixBundle={displayFixBundle} />
+          {fixBundleLoading ? (
+            <FixBundleSkeleton />
+          ) : fixBundle ? (
+            <FixBundleCard fixBundle={fixBundle} />
+          ) : null}
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * Full-page skeleton for issue detail loading state.
+ */
+function IssueDetailSkeleton() {
+  return (
+    <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
+      {/* Breadcrumb skeleton */}
+      <div className="flex items-center gap-2">
+        <div className="h-4 w-14 animate-pulse rounded bg-bg-tertiary" />
+        <span className="text-text-muted">/</span>
+        <div className="h-4 w-20 animate-pulse rounded bg-bg-tertiary" />
+        <span className="text-text-muted">/</span>
+        <div className="h-4 w-48 animate-pulse rounded bg-bg-tertiary" />
+      </div>
+
+      <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
+        {/* Left Column */}
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
+          {/* Issue Card skeleton */}
+          <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex flex-1 flex-col gap-3">
+                <div className="h-6 w-3/4 animate-pulse rounded bg-bg-tertiary" />
+                <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
+                <div className="h-4 w-2/3 animate-pulse rounded bg-bg-tertiary" />
+              </div>
+              <div className="h-6 w-20 animate-pulse rounded-full bg-bg-tertiary" />
+            </div>
+          </div>
+
+          {/* Code block skeleton */}
+          <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
+            <div className="mb-4 h-5 w-24 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-40 w-full animate-pulse rounded-xl bg-bg-tertiary" />
+          </div>
+
+          {/* Trust signals skeleton */}
+          <div className="flex items-center gap-6 rounded-2xl border border-border-light/80 bg-white px-6 py-4 shadow-[var(--shadow-card)]">
+            <div className="h-4 w-28 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-4 w-32 animate-pulse rounded bg-bg-tertiary" />
+          </div>
+        </div>
+
+        {/* Right Column skeleton */}
+        <div className="w-full lg:w-[380px]">
+          <FixBundleSkeleton />
+        </div>
+      </div>
+    </main>
+  );
+}
+
+/**
+ * Skeleton for the fix bundle sidebar card.
+ */
+function FixBundleSkeleton() {
+  return (
+    <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
+      <div className="mb-4 h-5 w-32 animate-pulse rounded bg-bg-tertiary" />
+      <div className="flex flex-col gap-3">
+        <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
+        <div className="h-4 w-5/6 animate-pulse rounded bg-bg-tertiary" />
+        <div className="h-4 w-2/3 animate-pulse rounded bg-bg-tertiary" />
+      </div>
+      <div className="mt-6 flex flex-col gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <div className="h-5 w-5 animate-pulse rounded-full bg-bg-tertiary" />
+            <div className="h-4 flex-1 animate-pulse rounded bg-bg-tertiary" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }

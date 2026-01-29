@@ -10,6 +10,7 @@ export interface IssueSearchParams {
   category?: string;
   status?: string;
   provider?: string;
+  time_range?: "7d" | "30d" | "90d";
   limit?: number;
   offset?: number;
 }

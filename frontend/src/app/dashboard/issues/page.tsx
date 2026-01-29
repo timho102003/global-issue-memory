@@ -7,75 +7,6 @@ import { IssuesTable } from "@/components/dashboard/issues-table";
 import { useIssueSearch } from "@/lib/hooks/use-issues";
 import type { MasterIssue, IssueStatus, RootCauseCategory } from "@/types";
 
-// Mock data for development
-const mockIssues: MasterIssue[] = [
-  {
-    id: "1",
-    canonical_title: "LangChain @tool decorator causing schema validation errors",
-    description: "The @tool decorator fails to generate valid JSON schema",
-    root_cause_category: "api_integration",
-    confidence_score: 0.92,
-    child_issue_count: 24,
-    environment_coverage: ["Claude", "GPT-4"],
-    verification_count: 156,
-    status: "active",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 3).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 30).toISOString(),
-  },
-  {
-    id: "2",
-    canonical_title: "OpenAI function calling returns malformed JSON",
-    description: "Intermittent JSON parsing failures with function_call response",
-    root_cause_category: "model_behavior",
-    confidence_score: 0.88,
-    child_issue_count: 18,
-    environment_coverage: ["GPT-4", "GPT-3.5"],
-    verification_count: 89,
-    status: "active",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 5).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(),
-  },
-  {
-    id: "3",
-    canonical_title: "Pydantic v2 model_dump() incompatible with older codebases",
-    description: "Migration from v1 to v2 breaks existing serialization",
-    root_cause_category: "environment",
-    confidence_score: 0.95,
-    child_issue_count: 42,
-    environment_coverage: ["Python 3.10+"],
-    verification_count: 234,
-    status: "active",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 7).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 12).toISOString(),
-  },
-  {
-    id: "4",
-    canonical_title: "FastAPI dependency injection fails with async context",
-    description: "Dependencies using asynccontextmanager don't properly cleanup",
-    root_cause_category: "framework_specific",
-    confidence_score: 0.76,
-    child_issue_count: 8,
-    environment_coverage: ["FastAPI 0.100+"],
-    verification_count: 45,
-    status: "superseded",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 10).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 24).toISOString(),
-  },
-  {
-    id: "5",
-    canonical_title: "Claude tool_use requires specific response format",
-    description: "Tool results must follow exact schema structure",
-    root_cause_category: "api_integration",
-    confidence_score: 0.91,
-    child_issue_count: 15,
-    environment_coverage: ["Claude 3"],
-    verification_count: 112,
-    status: "active",
-    created_at: new Date(Date.now() - 1000 * 60 * 60 * 24 * 2).toISOString(),
-    updated_at: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(),
-  },
-];
-
 /**
  * Issue Explorer page matching GIM.pen design (yHuOd).
  */
@@ -84,6 +15,7 @@ export default function IssuesPage() {
   const [category, setCategory] = useState<string>("all");
   const [status, setStatus] = useState<string>("all");
   const [provider, setProvider] = useState<string>("all");
+  const [timeRange, setTimeRange] = useState<string>("all");
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading } = useIssueSearch({
@@ -91,11 +23,11 @@ export default function IssuesPage() {
     category: category !== "all" ? category : undefined,
     status: status !== "all" ? status : undefined,
     provider: provider !== "all" ? provider : undefined,
+    time_range: timeRange !== "all" ? (timeRange as "7d" | "30d" | "90d") : undefined,
     limit: 20,
   });
 
-  // Use mock data only when not loading and no real data
-  const issues = isLoading ? [] : (data?.issues || mockIssues);
+  const issues = data?.issues ?? [];
 
   return (
     <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
@@ -142,6 +74,16 @@ export default function IssuesPage() {
               <option value="superseded">Pending</option>
               <option value="invalid">Declined</option>
             </Select>
+            <Select
+              value={timeRange}
+              onChange={(e) => setTimeRange(e.target.value)}
+              className="w-full sm:w-[140px]"
+            >
+              <option value="all">All Time</option>
+              <option value="7d">Past 7 Days</option>
+              <option value="30d">Past 30 Days</option>
+              <option value="90d">Past 90 Days</option>
+            </Select>
           </div>
           <SearchBox
             placeholder="Search issues..."
@@ -165,9 +107,7 @@ export default function IssuesPage() {
         {/* Table Body */}
         <div className="flex-1 overflow-auto">
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-sm text-text-muted">Loading issues...</p>
-            </div>
+            <IssuesTableSkeleton />
           ) : (
             <IssuesTable
               issues={issues}
@@ -178,5 +118,32 @@ export default function IssuesPage() {
         </div>
       </div>
     </main>
+  );
+}
+
+/**
+ * Skeleton loading state for the issues table.
+ */
+function IssuesTableSkeleton() {
+  return (
+    <div className="divide-y divide-border-soft">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={i} className="flex items-center gap-4 px-5 py-4 sm:px-6">
+          {/* Checkbox placeholder */}
+          <div className="h-4 w-4 animate-pulse rounded bg-bg-tertiary" />
+          {/* Title + description */}
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <div className="h-4 w-3/4 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-3 w-1/2 animate-pulse rounded bg-bg-tertiary" />
+          </div>
+          {/* Category badge */}
+          <div className="hidden h-6 w-20 animate-pulse rounded-full bg-bg-tertiary sm:block" />
+          {/* Confidence */}
+          <div className="hidden h-4 w-12 animate-pulse rounded bg-bg-tertiary md:block" />
+          {/* Count */}
+          <div className="hidden h-4 w-8 animate-pulse rounded bg-bg-tertiary lg:block" />
+        </div>
+      ))}
+    </div>
   );
 }
