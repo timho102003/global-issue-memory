@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Github, Users, CheckCircle, Shield } from "lucide-react";
+import { Sparkles, Github, Users, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface HeroProps {
@@ -30,7 +30,7 @@ export function Hero({ onPrimaryClick, onSecondaryClick }: HeroProps) {
 
         {/* Subline */}
         <p className="max-w-[620px] text-center text-base leading-relaxed text-text-secondary sm:text-lg md:text-xl">
-          GIM is an open community where developers share verified solutions. When your AI
+          Global Issue Memory (GIM) is an open community where developers share verified solutions. When your AI
           solves something new, it helps the next developer instantly.
         </p>
 
@@ -56,12 +56,12 @@ export function Hero({ onPrimaryClick, onSecondaryClick }: HeroProps) {
         {/* Trust Badges */}
         <div className="flex flex-wrap items-center justify-center gap-4 sm:gap-6">
           <div className="flex items-center gap-1.5">
-            <Users className="h-4 w-4 text-text-muted" />
-            <span className="text-[13px] text-text-secondary">2,500+ developers</span>
+            <Github className="h-4 w-4 text-text-muted" />
+            <span className="text-[13px] text-text-secondary">Open Source</span>
           </div>
           <div className="flex items-center gap-1.5">
-            <CheckCircle className="h-4 w-4 text-text-muted" />
-            <span className="text-[13px] text-text-secondary">10,000+ fixes shared</span>
+            <Users className="h-4 w-4 text-text-muted" />
+            <span className="text-[13px] text-text-secondary">Community-Driven</span>
           </div>
           <div className="flex items-center gap-1.5">
             <Shield className="h-4 w-4 text-text-muted" />

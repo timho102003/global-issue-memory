@@ -1,4 +1,14 @@
 import { Download, Search, Share2, Heart } from "lucide-react";
+import { CodeBlock } from "@/components/ui/code-block";
+
+const mcpConfigCode = `{
+  "mcpServers": {
+    "gim": {
+      "command": "uvx",
+      "args": ["gim-mcp"]
+    }
+  }
+}`;
 
 /**
  * How It Works section with 3-step cards and responsive grid.
@@ -8,9 +18,9 @@ export function HowItWorks() {
     {
       number: "01",
       icon: Download,
-      title: "Install GIM",
-      description: "One command to add GIM to your workflow. Works with any AI assistant.",
-      code: "pip install gim-mcp",
+      title: "Add GIM to Your AI Assistant",
+      description: "Add GIM's MCP config to your AI assistant. Works with Claude, Cursor, and any MCP client.",
+      code: mcpConfigCode,
     },
     {
       number: "02",
@@ -59,9 +69,7 @@ export function HowItWorks() {
                 {step.description}
               </p>
               {step.code && (
-                <code className="rounded-lg bg-[#1E1E1E] px-4 py-2.5 font-mono text-xs text-white sm:text-sm">
-                  {step.code}
-                </code>
+                <CodeBlock code={step.code} language="json" showCopy />
               )}
             </div>
           ))}
