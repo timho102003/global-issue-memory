@@ -9,40 +9,42 @@ interface CtaSectionProps {
 }
 
 /**
- * Final CTA section matching GIM.pen design.
+ * Final CTA section with responsive layout.
  */
 export function CtaSection({ onPrimaryClick, onSecondaryClick }: CtaSectionProps) {
   return (
-    <section className="flex flex-col items-center gap-10 bg-gradient-to-b from-[#FDF8E8] to-[#F5F0E6] px-20 py-[120px]">
-      <h2 className="text-center text-[48px] font-bold text-[#1A1A1A]">
-        Ready to Join the Community?
-      </h2>
-      <p className="text-center text-xl text-[#52525B]">
-        Start contributing and help developers everywhere.
-      </p>
+    <section className="bg-gradient-to-b from-bg-gradient-start to-bg-tertiary px-5 py-16 sm:px-8 sm:py-20 md:py-28 lg:px-12">
+      <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-8">
+        <h2 className="text-center text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-[44px] lg:leading-[1.15]">
+          Ready to Join the Community?
+        </h2>
+        <p className="text-center text-[14px] text-text-secondary sm:text-base md:text-lg">
+          Start contributing and help developers everywhere.
+        </p>
 
-      {/* CTAs */}
-      <div className="flex items-center gap-4">
-        <Button
-          onClick={onPrimaryClick}
-          className="flex items-center gap-2 rounded-3xl bg-[#D4A853] px-8 py-4 text-base font-semibold text-white hover:bg-[#C49843]"
-        >
-          <Sparkles className="h-4 w-4" />
-          Get Started Free
-        </Button>
-        <Button
-          onClick={onSecondaryClick}
-          variant="outline"
-          className="flex items-center gap-2 rounded-3xl border-[#D4D0C5] px-8 py-4 text-base font-semibold text-[#1A1A1A] hover:bg-[#F5F0E6]"
-        >
-          <Github className="h-4 w-4" />
-          View on GitHub
-        </Button>
+        {/* CTAs */}
+        <div className="flex flex-col items-center gap-3 sm:flex-row sm:gap-4">
+          <Button
+            onClick={onPrimaryClick}
+            className="w-full bg-accent-warm px-8 py-4 text-[15px] font-semibold text-white shadow-md hover:bg-accent-gold sm:w-auto"
+          >
+            <Sparkles className="h-4 w-4" />
+            Get Started Free
+          </Button>
+          <Button
+            onClick={onSecondaryClick}
+            variant="outline"
+            className="w-full border-border-light px-8 py-4 text-[15px] font-semibold text-text-primary hover:bg-bg-muted sm:w-auto"
+          >
+            <Github className="h-4 w-4" />
+            View on GitHub
+          </Button>
+        </div>
+
+        <p className="text-[13px] text-text-muted">
+          Open source. Free forever. Built by the community.
+        </p>
       </div>
-
-      <p className="text-sm text-[#9CA3AF]">
-        Open source. Free forever. Built by the community.
-      </p>
     </section>
   );
 }

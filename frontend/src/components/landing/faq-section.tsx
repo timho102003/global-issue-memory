@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/accordion";
 
 /**
- * FAQ section matching GIM.pen design.
+ * FAQ section with centered accordion and responsive container.
  */
 export function FaqSection() {
   const faqs = [
@@ -47,32 +47,34 @@ export function FaqSection() {
   return (
     <section
       id="faq"
-      className="flex flex-col items-center gap-[60px] bg-[#F5F0E6] px-20 py-[100px]"
+      className="bg-bg-tertiary px-5 py-16 sm:px-8 sm:py-20 md:py-24 lg:px-12"
     >
-      {/* Header */}
-      <div className="flex flex-col items-center gap-4">
-        <span className="text-sm font-semibold tracking-[2px] text-[#D4A853]">
-          COMMON QUESTIONS
-        </span>
-        <h2 className="text-center text-[48px] font-bold text-[#1A1A1A]">
-          Have Questions? We&apos;re Here to Help.
-        </h2>
-      </div>
+      <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-12 md:gap-14">
+        {/* Header */}
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-[11px] font-semibold tracking-[2px] text-accent-warm uppercase">
+            Common Questions
+          </span>
+          <h2 className="text-center text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-[44px] lg:leading-[1.15]">
+            Have Questions? We&apos;re Here to Help.
+          </h2>
+        </div>
 
-      {/* FAQ Accordion */}
-      <div className="w-full max-w-[800px]">
-        <Accordion type="single">
-          {faqs.map((faq, index) => (
-            <AccordionItem key={index} value={`faq-${index}`}>
-              <AccordionTrigger value={`faq-${index}`}>
-                {faq.question}
-              </AccordionTrigger>
-              <AccordionContent value={`faq-${index}`}>
-                {faq.answer}
-              </AccordionContent>
-            </AccordionItem>
-          ))}
-        </Accordion>
+        {/* FAQ Accordion */}
+        <div className="w-full max-w-[760px]">
+          <Accordion type="single">
+            {faqs.map((faq, index) => (
+              <AccordionItem key={index} value={`faq-${index}`}>
+                <AccordionTrigger value={`faq-${index}`}>
+                  {faq.question}
+                </AccordionTrigger>
+                <AccordionContent value={`faq-${index}`}>
+                  {faq.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </div>
       </div>
     </section>
   );

@@ -1,7 +1,7 @@
 import { Download, Search, Share2, Heart } from "lucide-react";
 
 /**
- * How It Works section matching GIM.pen design.
+ * How It Works section with 3-step cards and responsive grid.
  */
 export function HowItWorks() {
   const steps = [
@@ -29,56 +29,58 @@ export function HowItWorks() {
   ];
 
   return (
-    <section id="how-it-works" className="flex flex-col items-center gap-[60px] bg-[#F5F0E6] px-20 py-[100px]">
-      {/* Header */}
-      <div className="flex flex-col items-center gap-4">
-        <span className="text-xs font-semibold tracking-[2px] text-[#D4A853]">
-          GETTING STARTED
-        </span>
-        <h2 className="text-center text-[48px] font-bold text-[#1A1A1A]">
-          Simple Setup. Immediate Value.
-        </h2>
-      </div>
-
-      {/* Steps */}
-      <div className="flex w-full gap-8">
-        {steps.map((step, index) => (
-          <div
-            key={index}
-            className="flex flex-1 flex-col gap-5 rounded-[20px] border border-[#E5E0D5] bg-white p-8"
-          >
-            <div className="flex items-center gap-4">
-              <span className="text-3xl font-bold text-[#D4A853]">{step.number}</span>
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#FEF3C7]">
-                <step.icon className="h-5 w-5 text-[#D4A853]" />
-              </div>
-            </div>
-            <h3 className="text-xl font-semibold text-[#1A1A1A]">{step.title}</h3>
-            <p className="text-base leading-relaxed text-[#52525B]">
-              {step.description}
-            </p>
-            {step.code && (
-              <code className="rounded-lg bg-[#1E1E1E] px-4 py-3 font-mono text-sm text-white">
-                {step.code}
-              </code>
-            )}
-          </div>
-        ))}
-      </div>
-
-      {/* Bonus Step */}
-      <div className="flex w-full items-center gap-6 rounded-[20px] border border-[#D4A85344] bg-[#FDF5E6] p-8">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-[#D4A85322]">
-          <Heart className="h-7 w-7 text-[#D4A853]" />
+    <section id="how-it-works" className="bg-bg-tertiary px-5 py-16 sm:px-8 sm:py-20 md:py-24 lg:px-12">
+      <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-12 md:gap-14">
+        {/* Header */}
+        <div className="flex flex-col items-center gap-3">
+          <span className="text-[11px] font-semibold tracking-[2px] text-accent-warm uppercase">
+            Getting Started
+          </span>
+          <h2 className="text-center text-2xl font-bold tracking-tight text-text-primary sm:text-3xl md:text-4xl lg:text-[44px] lg:leading-[1.15]">
+            Simple Setup. Immediate Value.
+          </h2>
         </div>
-        <div className="flex flex-col gap-2">
-          <h4 className="text-lg font-semibold text-[#1A1A1A]">
-            That&apos;s it. You&apos;re part of the community.
-          </h4>
-          <p className="text-base text-[#52525B]">
-            Every fix you use and share makes the whole community smarter. Together, we&apos;re
-            building a global knowledge base for AI development.
-          </p>
+
+        {/* Steps */}
+        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
+          {steps.map((step, index) => (
+            <div
+              key={index}
+              className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 sm:p-7"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl font-bold tracking-tight text-accent-warm">{step.number}</span>
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FEF3C7]">
+                  <step.icon className="h-4 w-4 text-accent-warm" />
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-text-primary">{step.title}</h3>
+              <p className="text-[14px] leading-relaxed text-text-secondary">
+                {step.description}
+              </p>
+              {step.code && (
+                <code className="rounded-lg bg-[#1E1E1E] px-4 py-2.5 font-mono text-xs text-white sm:text-sm">
+                  {step.code}
+                </code>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Bonus Step */}
+        <div className="flex w-full flex-col items-start gap-4 rounded-2xl border border-accent-warm/20 bg-bg-highlight p-6 shadow-[var(--shadow-sm)] sm:flex-row sm:items-center sm:gap-6 sm:p-8">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-accent-warm/10">
+            <Heart className="h-6 w-6 text-accent-warm" />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <h4 className="text-base font-semibold text-text-primary sm:text-lg">
+              That&apos;s it. You&apos;re part of the community.
+            </h4>
+            <p className="text-[14px] leading-relaxed text-text-secondary">
+              Every fix you use and share makes the whole community smarter. Together, we&apos;re
+              building a global knowledge base for AI development.
+            </p>
+          </div>
         </div>
       </div>
     </section>
