@@ -8,7 +8,14 @@ import { format, formatDistanceToNow, parseISO } from "date-fns";
  * @returns Formatted date string
  */
 export function formatDate(dateString: string, formatStr: string = "MMM d, yyyy"): string {
-  return format(parseISO(dateString), formatStr);
+  if (!dateString) return "N/A";
+  try {
+    const date = parseISO(dateString);
+    if (isNaN(date.getTime())) return "N/A";
+    return format(date, formatStr);
+  } catch {
+    return "N/A";
+  }
 }
 
 /**
@@ -18,7 +25,14 @@ export function formatDate(dateString: string, formatStr: string = "MMM d, yyyy"
  * @returns Relative time string (e.g., "2 hours ago")
  */
 export function formatRelativeTime(dateString: string): string {
-  return formatDistanceToNow(parseISO(dateString), { addSuffix: true });
+  if (!dateString) return "Unknown";
+  try {
+    const date = parseISO(dateString);
+    if (isNaN(date.getTime())) return "Unknown";
+    return formatDistanceToNow(date, { addSuffix: true });
+  } catch {
+    return "Unknown";
+  }
 }
 
 /**
