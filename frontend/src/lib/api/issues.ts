@@ -125,3 +125,28 @@ export interface ActivityItem {
 export async function getDashboardStats(): Promise<DashboardStats> {
   return api.get<DashboardStats>("/dashboard/stats");
 }
+
+/**
+ * Profile statistics for a user.
+ */
+export interface ProfileStats {
+  total_searches: number;
+  total_submissions: number;
+  total_confirmations: number;
+  total_reports: number;
+  contributions: { date: string; count: number }[];
+  rate_limit: {
+    daily_searches_used: number;
+    daily_searches_limit: number;
+  };
+}
+
+/**
+ * Get profile statistics for a GIM ID.
+ *
+ * @param gimId - The GIM ID
+ * @returns Profile stats
+ */
+export async function getProfileStats(gimId: string): Promise<ProfileStats> {
+  return api.get<ProfileStats>(`/profile/stats/${gimId}`);
+}

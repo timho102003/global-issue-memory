@@ -8,6 +8,7 @@ import {
   submitIssue,
   confirmFix,
   getDashboardStats,
+  getProfileStats,
   type IssueSearchParams,
 } from "@/lib/api/issues";
 import type { ChildIssueCreate } from "@/types";
@@ -108,6 +109,21 @@ export function useDashboardStats() {
   return useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: getDashboardStats,
+    staleTime: 60000, // 1 minute
+  });
+}
+
+/**
+ * Hook for profile statistics.
+ *
+ * @param gimId - The GIM ID
+ * @returns Query result
+ */
+export function useProfileStats(gimId: string | null) {
+  return useQuery({
+    queryKey: ["profile", "stats", gimId],
+    queryFn: () => getProfileStats(gimId!),
+    enabled: !!gimId,
     staleTime: 60000, // 1 minute
   });
 }
