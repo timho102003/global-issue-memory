@@ -10,40 +10,8 @@ import { ContributionHeatmap } from "@/components/profile/contribution-heatmap";
 import { McpConfigCard } from "@/components/profile/mcp-config-card";
 import { AuthModal } from "@/components/auth";
 import { useAuthStore } from "@/stores/auth-store";
+import { useProfileStats } from "@/lib/hooks/use-issues";
 import { formatNumber } from "@/lib/utils";
-
-// Generate mock contribution data
-function generateMockContributions() {
-  const data: { date: string; count: number }[] = [];
-  const today = new Date();
-
-  for (let i = 0; i < 365; i++) {
-    const date = new Date(today);
-    date.setDate(date.getDate() - i);
-
-    // Random contribution count with some variation
-    const random = Math.random();
-    let count = 0;
-    if (random > 0.7) count = Math.floor(Math.random() * 5) + 1;
-    if (random > 0.9) count = Math.floor(Math.random() * 10) + 5;
-
-    data.push({
-      date: date.toISOString().split("T")[0],
-      count,
-    });
-  }
-
-  return data;
-}
-
-const mockContributions = generateMockContributions();
-
-const mockStats = {
-  totalSearches: 1247,
-  totalSubmissions: 89,
-  totalConfirmations: 234,
-  totalReports: 12,
-};
 
 /**
  * Profile page matching GIM.pen design (QV9MN).
@@ -52,16 +20,33 @@ const mockStats = {
 export default function ProfilePage() {
   const { gimId, isAuthenticated } = useAuthStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const { data: profileStats } = useProfileStats(gimId);
+
+  // Use real data or defaults
+  const stats = {
+    totalSearches: profileStats?.total_searches ?? 0,
+    totalSubmissions: profileStats?.total_submissions ?? 0,
+    totalConfirmations: profileStats?.total_confirmations ?? 0,
+    totalReports: profileStats?.total_reports ?? 0,
+  };
+  const contributions = profileStats?.contributions ?? [];
+  const rateLimit = profileStats?.rate_limit ?? {
+    daily_searches_used: 0,
+    daily_searches_limit: 100,
+  };
+  const rateLimitPercent = rateLimit.daily_searches_limit > 0
+    ? Math.round((rateLimit.daily_searches_used / rateLimit.daily_searches_limit) * 100)
+    : 0;
 
   // Show sign-in prompt if not authenticated
   if (!isAuthenticated) {
     return (
-      <main className="flex flex-1 flex-col items-center justify-center gap-6 px-10 py-6">
+      <main className="flex flex-1 flex-col items-center justify-center gap-6 py-6 sm:py-8">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-muted">
             <LogIn className="h-8 w-8 text-text-muted" />
           </div>
-          <h1 className="text-2xl font-semibold text-text-primary">
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
             Sign in to view your profile
           </h1>
           <p className="max-w-md text-sm text-text-secondary">
@@ -88,7 +73,7 @@ export default function ProfilePage() {
   const displayGimId = gimId!;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-10 py-6">
+    <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
       {/* Page Header */}
       <div className="flex items-center gap-4">
         <Avatar
@@ -96,50 +81,50 @@ export default function ProfilePage() {
           size="lg"
         />
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-semibold text-text-primary">
+          <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
             GIM User
           </h1>
-          <p className="text-sm text-text-secondary">
+          <p className="text-[13px] text-text-secondary">
             Member since January 2025
           </p>
         </div>
       </div>
 
       {/* Content Row */}
-      <div className="flex flex-1 gap-6">
+      <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
         {/* Left Column */}
-        <div className="flex w-[560px] flex-col gap-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-5 lg:flex-[3]">
           {/* GIM ID Card */}
           <GimIdCard gimId={displayGimId} />
 
           {/* Stats Card */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Activity Stats</CardTitle>
+              <CardTitle>Activity Stats</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4">
-                  <span className="text-2xl font-bold text-text-primary">
-                    {formatNumber(mockStats.totalSearches)}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4 transition-colors hover:bg-bg-tertiary">
+                  <span className="text-2xl font-bold tracking-tight text-text-primary">
+                    {formatNumber(stats.totalSearches)}
                   </span>
                   <span className="text-xs text-text-muted">Total Searches</span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4">
-                  <span className="text-2xl font-bold text-text-primary">
-                    {formatNumber(mockStats.totalSubmissions)}
+                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4 transition-colors hover:bg-bg-tertiary">
+                  <span className="text-2xl font-bold tracking-tight text-text-primary">
+                    {formatNumber(stats.totalSubmissions)}
                   </span>
                   <span className="text-xs text-text-muted">Submissions</span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4">
-                  <span className="text-2xl font-bold text-text-primary">
-                    {formatNumber(mockStats.totalConfirmations)}
+                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4 transition-colors hover:bg-bg-tertiary">
+                  <span className="text-2xl font-bold tracking-tight text-text-primary">
+                    {formatNumber(stats.totalConfirmations)}
                   </span>
                   <span className="text-xs text-text-muted">Confirmations</span>
                 </div>
-                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4">
-                  <span className="text-2xl font-bold text-text-primary">
-                    {formatNumber(mockStats.totalReports)}
+                <div className="flex flex-col gap-1 rounded-xl bg-bg-muted p-4 transition-colors hover:bg-bg-tertiary">
+                  <span className="text-2xl font-bold tracking-tight text-text-primary">
+                    {formatNumber(stats.totalReports)}
                   </span>
                   <span className="text-xs text-text-muted">Reports</span>
                 </div>
@@ -148,30 +133,30 @@ export default function ProfilePage() {
           </Card>
 
           {/* Contribution Heatmap */}
-          <ContributionHeatmap data={mockContributions} />
+          <ContributionHeatmap data={contributions} />
         </div>
 
         {/* Right Column */}
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* MCP Config */}
           <McpConfigCard gimId={displayGimId} />
 
           {/* Rate Limit Info */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Rate Limits</CardTitle>
+              <CardTitle>Rate Limits</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-text-secondary">Daily Searches</span>
-                <span className="text-sm font-medium text-text-primary">
-                  87 / 100
+                <span className="text-[13px] text-text-secondary">Daily Searches</span>
+                <span className="text-[13px] font-medium text-text-primary">
+                  {rateLimit.daily_searches_used} / {rateLimit.daily_searches_limit}
                 </span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-bg-muted">
+              <div className="h-1.5 overflow-hidden rounded-full bg-bg-muted">
                 <div
-                  className="h-full rounded-full bg-[#D4A853]"
-                  style={{ width: "87%" }}
+                  className="h-full rounded-full bg-[#D4A853] transition-all duration-500"
+                  style={{ width: `${rateLimitPercent}%` }}
                 />
               </div>
               <p className="text-xs text-text-muted">

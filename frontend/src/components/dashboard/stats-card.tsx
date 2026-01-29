@@ -1,17 +1,22 @@
-import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+type BadgeVariant = "success" | "warning" | "purple";
 
 interface StatsCardProps {
   title: string;
   value: string | number;
-  subtitle?: string;
-  icon?: LucideIcon;
-  trend?: {
-    value: number;
-    isPositive: boolean;
+  badge?: {
+    text: string;
+    variant: BadgeVariant;
   };
   className?: string;
 }
+
+const badgeStyles: Record<BadgeVariant, string> = {
+  success: "bg-[#E3F0E3] text-[#4A7A4A]",
+  warning: "bg-[#FEF3CD] text-[#856404]",
+  purple: "bg-[#E8E3F0] text-[#6B5B8C]",
+};
 
 /**
  * Stats card component matching GIM.pen dashboard design.
@@ -19,42 +24,30 @@ interface StatsCardProps {
 export function StatsCard({
   title,
   value,
-  subtitle,
-  icon: Icon,
-  trend,
+  badge,
   className,
 }: StatsCardProps) {
   return (
     <div
       className={cn(
-        "flex flex-col gap-2 rounded-[20px] bg-white p-6",
+        "flex flex-col gap-2 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5",
         className
       )}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-sm text-text-secondary">{title}</span>
-        {Icon && (
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-bg-muted">
-            <Icon className="h-4 w-4 text-text-secondary" />
-          </div>
-        )}
-      </div>
-      <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-bold text-text-primary">{value}</span>
-        {trend && (
+      <span className="text-[13px] font-medium text-text-secondary">{title}</span>
+      <div className="flex items-center gap-3">
+        <span className="text-3xl font-bold tracking-tight text-text-primary">{value}</span>
+        {badge && (
           <span
             className={cn(
-              "text-sm font-medium",
-              trend.isPositive ? "text-success-foreground" : "text-error-foreground"
+              "rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
+              badgeStyles[badge.variant]
             )}
           >
-            {trend.isPositive ? "+" : ""}{trend.value}%
+            {badge.text}
           </span>
         )}
       </div>
-      {subtitle && (
-        <span className="text-xs text-text-muted">{subtitle}</span>
-      )}
     </div>
   );
 }

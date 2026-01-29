@@ -98,21 +98,21 @@ export default function IssuesPage() {
   const issues = data?.issues || mockIssues;
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-10 py-6">
+    <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
       {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-[32px] font-semibold text-text-primary">Issues</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">Issues</h1>
       </div>
 
       {/* Issues Card */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-3xl bg-white">
+      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
         {/* Filters */}
-        <div className="flex items-center justify-between border-b border-border-soft px-6 py-5">
-          <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-3 border-b border-border-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <Select
               value={category}
               onChange={(e) => setCategory(e.target.value)}
-              className="w-[140px]"
+              className="w-full sm:w-[140px]"
             >
               <option value="all">All Categories</option>
               <option value="environment">Environment</option>
@@ -124,7 +124,7 @@ export default function IssuesPage() {
             <Select
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              className="w-[140px]"
+              className="w-full sm:w-[140px]"
             >
               <option value="all">All Providers</option>
               <option value="openai">OpenAI</option>
@@ -135,7 +135,7 @@ export default function IssuesPage() {
             <Select
               value={status}
               onChange={(e) => setStatus(e.target.value)}
-              className="w-[120px]"
+              className="w-full sm:w-[120px]"
             >
               <option value="all">All Status</option>
               <option value="active">Verified</option>
@@ -147,13 +147,13 @@ export default function IssuesPage() {
             placeholder="Search issues..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-[280px]"
+            className="w-full sm:w-[260px]"
           />
         </div>
 
         {/* Table Header */}
-        <div className="flex items-center justify-between border-b border-border-soft px-6 py-3.5">
-          <span className="text-sm text-text-muted">
+        <div className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6 sm:py-3.5">
+          <span className="text-[13px] text-text-muted">
             {selectedIds.length > 0
               ? `${selectedIds.length} selected`
               : `${issues.length} issues`}

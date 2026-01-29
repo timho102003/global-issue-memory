@@ -1,4 +1,4 @@
-import { FileText, CheckCircle, RefreshCw } from "lucide-react";
+import { Check, Plus, User } from "lucide-react";
 import { formatRelativeTime } from "@/lib/utils";
 import type { ActivityItem } from "@/lib/api/issues";
 
@@ -6,20 +6,44 @@ interface ActivityListProps {
   activities: ActivityItem[];
 }
 
-const activityIcons = {
-  submission: FileText,
-  confirmation: CheckCircle,
-  update: RefreshCw,
-};
+type ActivityType = "submission" | "confirmation" | "update" | "contributor";
 
-const activityLabels = {
-  submission: "New issue submitted",
-  confirmation: "Fix confirmed",
-  update: "Issue updated",
+interface ActivityStyle {
+  icon: typeof Check;
+  bgColor: string;
+  iconColor: string;
+  label: (title: string) => string;
+}
+
+const activityStyles: Record<ActivityType, ActivityStyle> = {
+  confirmation: {
+    icon: Check,
+    bgColor: "#E3F0E3",
+    iconColor: "#4A7A4A",
+    label: (title) => `Issue ${title} marked as resolved`,
+  },
+  submission: {
+    icon: Plus,
+    bgColor: "#FEF3CD",
+    iconColor: "#856404",
+    label: (title) => `New issue reported: ${title}`,
+  },
+  update: {
+    icon: Plus,
+    bgColor: "#FEF3CD",
+    iconColor: "#856404",
+    label: (title) => `Issue updated: ${title}`,
+  },
+  contributor: {
+    icon: User,
+    bgColor: "#E8E3F0",
+    iconColor: "#6B5B8C",
+    label: (title) => `New contributor joined: ${title}`,
+  },
 };
 
 /**
- * Activity list component for dashboard.
+ * Activity list component for dashboard matching GIM.pen design.
  */
 export function ActivityList({ activities }: ActivityListProps) {
   if (activities.length === 0) {
@@ -33,26 +57,29 @@ export function ActivityList({ activities }: ActivityListProps) {
   return (
     <div className="flex flex-col">
       {activities.map((activity) => {
-        const Icon = activityIcons[activity.type];
+        const type = activity.type as ActivityType;
+        const style = activityStyles[type] || activityStyles.update;
+        const Icon = style.icon;
+
         return (
           <div
             key={activity.id}
-            className="flex items-start gap-3 border-b border-border-soft p-4 last:border-0"
+            className="flex items-center gap-3 border-b border-border-soft px-5 py-3.5 transition-colors last:border-0 hover:bg-bg-muted/30 sm:px-6 sm:py-4"
           >
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-bg-muted">
-              <Icon className="h-4 w-4 text-text-secondary" />
+            <div
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
+              style={{ backgroundColor: style.bgColor }}
+            >
+              <Icon className="h-3.5 w-3.5" style={{ color: style.iconColor }} />
             </div>
             <div className="flex flex-1 flex-col gap-0.5">
-              <p className="text-sm text-text-primary">
-                {activityLabels[activity.type]}
+              <p className="text-[13px] font-medium text-text-primary">
+                {style.label(activity.issue_title)}
               </p>
-              <p className="text-xs text-text-secondary line-clamp-1">
-                {activity.issue_title}
+              <p className="text-[11px] text-text-muted">
+                {formatRelativeTime(activity.timestamp)}
               </p>
             </div>
-            <span className="text-xs text-text-muted">
-              {formatRelativeTime(activity.timestamp)}
-            </span>
           </div>
         );
       })}

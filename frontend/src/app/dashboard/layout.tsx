@@ -8,7 +8,9 @@ export default function DashboardLayout({
   return (
     <div className="flex min-h-screen flex-col bg-gradient-to-b from-bg-gradient-start to-bg-gradient-end">
       <DashboardNav />
-      {children}
+      <div className="mx-auto flex w-full max-w-[1040px] flex-1 flex-col px-4 sm:px-6">
+        {children}
+      </div>
     </div>
   );
 }

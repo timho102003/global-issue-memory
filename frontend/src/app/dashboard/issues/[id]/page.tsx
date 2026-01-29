@@ -124,7 +124,7 @@ export default function IssueDetailPage({
   const categoryInfo = CATEGORY_DISPLAY[displayIssue.root_cause_category];
 
   return (
-    <main className="flex flex-1 flex-col gap-6 px-10 py-6">
+    <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
       {/* Breadcrumbs */}
       <Breadcrumb>
         <BreadcrumbList>
@@ -145,14 +145,14 @@ export default function IssueDetailPage({
       </Breadcrumb>
 
       {/* Content Row */}
-      <div className="flex flex-1 gap-6">
+      <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
         {/* Left Column */}
-        <div className="flex flex-1 flex-col gap-5">
+        <div className="flex min-w-0 flex-1 flex-col gap-5">
           {/* Issue Card */}
           <Card>
             <CardHeader>
               <div className="flex items-start justify-between gap-4">
-                <CardTitle className="text-xl leading-tight">
+                <CardTitle className="text-lg leading-snug sm:text-xl">
                   {displayIssue.canonical_title}
                 </CardTitle>
                 <Badge
@@ -172,7 +172,7 @@ export default function IssueDetailPage({
           {/* Code Block */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-base">Example Code</CardTitle>
+              <CardTitle>Example Code</CardTitle>
             </CardHeader>
             <CardContent>
               <CodeBlock code={mockCodeExample} language="python" />
@@ -188,7 +188,7 @@ export default function IssueDetailPage({
         </div>
 
         {/* Right Column - Fix Bundle */}
-        <div className="w-[380px]">
+        <div className="w-full lg:w-[380px]">
           <FixBundleCard fixBundle={displayFixBundle} />
         </div>
       </div>
