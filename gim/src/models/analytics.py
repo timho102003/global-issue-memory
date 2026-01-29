@@ -32,10 +32,8 @@ class UsageEventCreate(BaseModel):
     Attributes:
         event_type: Type of the event.
         issue_id: Related issue ID if applicable.
-        session_id: AI assistant session identifier.
-        model_name: Name of the model making the request.
-        model_provider: Provider of the model.
-        success: Whether the action was successful.
+        model: Name of the AI model.
+        provider: Provider of the AI model.
         metadata: Additional event metadata.
     """
 
@@ -43,10 +41,8 @@ class UsageEventCreate(BaseModel):
 
     event_type: EventType
     issue_id: Optional[UUID] = None
-    session_id: str = Field(..., min_length=1, max_length=100)
-    model_name: Optional[str] = Field(None, max_length=100)
-    model_provider: Optional[str] = Field(None, max_length=50)
-    success: Optional[bool] = None
+    model: Optional[str] = Field(None, max_length=100)
+    provider: Optional[str] = Field(None, max_length=50)
     metadata: dict = Field(default_factory=dict)
 
 
@@ -95,7 +91,6 @@ class GlobalUsageStats(BaseModel):
         total_queries: All-time GIM search queries.
         total_issues_resolved: All-time successful fix confirmations.
         total_issues_submitted: All-time issues submitted by AI.
-        active_sessions_24h: Unique sessions in last 24 hours.
         queries_24h: Queries in last 24 hours.
         resolutions_24h: Resolutions in last 24 hours.
         top_queried_issues: IDs of most queried issues.
@@ -105,7 +100,6 @@ class GlobalUsageStats(BaseModel):
     total_queries: int = Field(ge=0)
     total_issues_resolved: int = Field(ge=0)
     total_issues_submitted: int = Field(ge=0)
-    active_sessions_24h: int = Field(ge=0)
     queries_24h: int = Field(ge=0)
     resolutions_24h: int = Field(ge=0)
     top_queried_issues: List[UUID] = Field(default_factory=list)

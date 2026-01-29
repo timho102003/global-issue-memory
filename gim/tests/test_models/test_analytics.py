@@ -34,12 +34,12 @@ class TestUsageEventCreate:
         """Test creating a valid usage event."""
         event = UsageEventCreate(
             event_type=EventType.SEARCH,
-            session_id="session-123",
-            model_name="claude-3-opus",
-            model_provider="anthropic",
+            model="claude-3-opus",
+            provider="anthropic",
         )
         assert event.event_type == EventType.SEARCH
-        assert event.session_id == "session-123"
+        assert event.model == "claude-3-opus"
+        assert event.provider == "anthropic"
 
     def test_with_issue_id(self) -> None:
         """Test usage event with issue ID."""
@@ -47,51 +47,33 @@ class TestUsageEventCreate:
         event = UsageEventCreate(
             event_type=EventType.FIX_RETRIEVED,
             issue_id=issue_id,
-            session_id="session-456",
         )
         assert event.issue_id == issue_id
 
-    def test_session_id_required(self) -> None:
-        """Test that session_id is required."""
-        with pytest.raises(ValidationError):
-            UsageEventCreate(
-                event_type=EventType.SEARCH,
-            )
-
-    def test_session_id_min_length(self) -> None:
-        """Test that session_id must have minimum length."""
-        with pytest.raises(ValidationError):
-            UsageEventCreate(
-                event_type=EventType.SEARCH,
-                session_id="",
-            )
+    def test_minimal_event(self) -> None:
+        """Test creating event with only required fields."""
+        event = UsageEventCreate(
+            event_type=EventType.SEARCH,
+        )
+        assert event.event_type == EventType.SEARCH
+        assert event.issue_id is None
+        assert event.model is None
+        assert event.provider is None
 
     def test_optional_fields(self) -> None:
         """Test that optional fields default correctly."""
         event = UsageEventCreate(
             event_type=EventType.ISSUE_SUBMITTED,
-            session_id="session-789",
         )
         assert event.issue_id is None
-        assert event.model_name is None
-        assert event.model_provider is None
-        assert event.success is None
+        assert event.model is None
+        assert event.provider is None
         assert event.metadata == {}
-
-    def test_with_success_flag(self) -> None:
-        """Test usage event with success flag."""
-        event = UsageEventCreate(
-            event_type=EventType.FIX_CONFIRMED,
-            session_id="session-abc",
-            success=True,
-        )
-        assert event.success is True
 
     def test_with_metadata(self) -> None:
         """Test usage event with metadata."""
         event = UsageEventCreate(
             event_type=EventType.SEARCH,
-            session_id="session-def",
             metadata={"query_length": 150, "filters_used": ["model", "provider"]},
         )
         assert event.metadata["query_length"] == 150
@@ -105,7 +87,6 @@ class TestUsageEventResponse:
         response = UsageEventResponse(
             id=uuid4(),
             event_type=EventType.SEARCH,
-            session_id="session-123",
             created_at=datetime.now(),
         )
         assert response.event_type == EventType.SEARCH
@@ -174,12 +155,10 @@ class TestGlobalUsageStats:
             total_queries=10000,
             total_issues_resolved=5000,
             total_issues_submitted=1000,
-            active_sessions_24h=500,
             queries_24h=2000,
             resolutions_24h=1000,
         )
         assert stats.total_queries == 10000
-        assert stats.active_sessions_24h == 500
 
     def test_with_top_issues(self) -> None:
         """Test global stats with top issues."""
@@ -188,7 +167,6 @@ class TestGlobalUsageStats:
             total_queries=10000,
             total_issues_resolved=5000,
             total_issues_submitted=1000,
-            active_sessions_24h=500,
             queries_24h=2000,
             resolutions_24h=1000,
             top_queried_issues=issue_ids[:3],
@@ -204,7 +182,6 @@ class TestGlobalUsageStats:
                 total_queries=-1,
                 total_issues_resolved=0,
                 total_issues_submitted=0,
-                active_sessions_24h=0,
                 queries_24h=0,
                 resolutions_24h=0,
             )
@@ -215,7 +192,6 @@ class TestGlobalUsageStats:
             total_queries=100,
             total_issues_resolved=50,
             total_issues_submitted=10,
-            active_sessions_24h=5,
             queries_24h=20,
             resolutions_24h=10,
         )
