@@ -1,22 +1,31 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 interface ProviderListProps {
   data: { name: string; value: number }[];
 }
 
-// Provider color mapping matching GIM.pen design
+/** Maps provider names to their logo file in /logos/ */
+const PROVIDER_LOGOS: Record<string, string> = {
+  Anthropic: "/logos/anthropic.svg",
+  OpenAI: "/logos/openai.svg",
+  xAI: "/logos/xai.svg",
+  Meta: "/logos/meta.svg",
+  Groq: "/logos/groq.svg",
+};
+
+/** Fallback dot color for providers without a logo */
 const PROVIDER_COLORS: Record<string, string> = {
-  Anthropic: "#3D3D3D",
-  OpenAI: "#E8D98E",
-  Google: "#9BE9A8",
+  Google: "#4285F4",
+  Mistral: "#F54E42",
   Others: "#D4D2CD",
 };
 
 /**
  * Provider list component matching GIM.pen design.
- * Shows providers with colored dots and values.
+ * Shows providers with logos (or colored dots as fallback) and values.
  */
 export function ProviderList({ data }: ProviderListProps) {
   // Group smaller providers into "Others"
@@ -29,10 +38,6 @@ export function ProviderList({ data }: ProviderListProps) {
     ...topProviders,
     ...(othersTotal > 0 ? [{ name: "Others", value: othersTotal }] : []),
   ];
-
-  const getProviderColor = (name: string): string => {
-    return PROVIDER_COLORS[name] || PROVIDER_COLORS.Others;
-  };
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6 lg:h-auto">
@@ -47,10 +52,25 @@ export function ProviderList({ data }: ProviderListProps) {
               className="flex items-center justify-between rounded-lg px-2 py-1.5 transition-colors hover:bg-bg-muted/60"
             >
               <div className="flex items-center gap-2.5">
-                <div
-                  className="h-2 w-2 rounded-full"
-                  style={{ backgroundColor: getProviderColor(provider.name) }}
-                />
+                <div className="flex h-5 w-5 shrink-0 items-center justify-center">
+                  {PROVIDER_LOGOS[provider.name] ? (
+                    <Image
+                      src={PROVIDER_LOGOS[provider.name]}
+                      alt={provider.name}
+                      width={20}
+                      height={20}
+                      className="h-5 w-5 object-contain"
+                    />
+                  ) : (
+                    <div
+                      className="h-2.5 w-2.5 rounded-full"
+                      style={{
+                        backgroundColor:
+                          PROVIDER_COLORS[provider.name] || PROVIDER_COLORS.Others,
+                      }}
+                    />
+                  )}
+                </div>
                 <span className="text-[13px] text-text-primary">{provider.name}</span>
               </div>
               <span className="text-[13px] font-semibold tabular-nums text-text-primary">
