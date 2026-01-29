@@ -31,6 +31,35 @@ export function FixBundleCard({ fixBundle }: FixBundleCardProps) {
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
+        {/* Summary */}
+        {fixBundle.summary && (
+          <p className="text-sm leading-relaxed text-text-secondary">
+            {fixBundle.summary}
+          </p>
+        )}
+
+        {/* Fix Steps */}
+        {fixBundle.fix_steps && fixBundle.fix_steps.length > 0 && (
+          <div className="flex flex-col gap-3">
+            <h4 className="text-sm font-medium text-text-primary">
+              Fix Steps
+            </h4>
+            <ol className="flex flex-col gap-2">
+              {fixBundle.fix_steps.map((step: string, index: number) => (
+                <li
+                  key={index}
+                  className="flex items-start gap-3 text-sm text-text-secondary"
+                >
+                  <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent-warm/10 text-xs font-medium text-accent-warm">
+                    {index + 1}
+                  </span>
+                  <span className="pt-0.5">{step}</span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        )}
+
         {/* Environment Actions */}
         {fixBundle.env_actions && fixBundle.env_actions.length > 0 && (
         <div className="flex flex-col gap-3">

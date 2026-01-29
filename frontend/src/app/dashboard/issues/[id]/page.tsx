@@ -40,6 +40,13 @@ const mockIssue = {
 const mockFixBundle: FixBundle = {
   id: "fix-1",
   master_issue_id: "1",
+  summary: "Use explicit args_schema parameter with Pydantic BaseModel instead of relying on type inference for complex types",
+  fix_steps: [
+    "Create a Pydantic BaseModel class for your tool arguments",
+    "Pass the model as args_schema parameter to @tool decorator",
+    "Remove Optional type hints from the function signature if using args_schema",
+  ],
+  code_changes: [],
   env_actions: [
     {
       order: 1,

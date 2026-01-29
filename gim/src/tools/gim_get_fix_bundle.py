@@ -165,6 +165,12 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 "confidence_score": best_fix.get("confidence_score", 0),
                 "verification_count": best_fix.get("verification_count", 0),
                 "last_confirmed_at": best_fix.get("last_confirmed_at"),
+                "version": best_fix.get("version", 1),
+                "is_current": best_fix.get("is_current", True),
+                "code_fix": best_fix.get("code_fix"),
+                "patch_diff": best_fix.get("patch_diff"),
+                "created_at": best_fix.get("created_at", ""),
+                "updated_at": best_fix.get("updated_at", ""),
             },
             "alternative_fixes_count": len(fix_bundles) - 1,
         })

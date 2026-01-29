@@ -24,11 +24,22 @@ export interface VerificationStep {
 }
 
 export interface FixBundleCreate {
+  summary: string;
+  fix_steps: string[];
+  code_changes: CodeChange[];
   env_actions: EnvAction[];
   constraints: Constraints;
   verification: VerificationStep[];
   patch_diff?: string;
   code_fix?: string;
+}
+
+export interface CodeChange {
+  file_path: string;
+  change_type: "add" | "modify" | "delete";
+  before?: string;
+  after?: string;
+  explanation?: string;
 }
 
 export interface FixBundle extends FixBundleCreate {
