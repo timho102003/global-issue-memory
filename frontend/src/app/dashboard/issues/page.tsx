@@ -94,8 +94,8 @@ export default function IssuesPage() {
     limit: 20,
   });
 
-  // Use mock data if no real data
-  const issues = data?.issues || mockIssues;
+  // Use mock data only when not loading and no real data
+  const issues = isLoading ? [] : (data?.issues || mockIssues);
 
   return (
     <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
@@ -105,7 +105,7 @@ export default function IssuesPage() {
       </div>
 
       {/* Issues Card */}
-      <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
+      <div className="flex flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
         {/* Filters */}
         <div className="flex flex-col gap-3 border-b border-border-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -154,19 +154,27 @@ export default function IssuesPage() {
         {/* Table Header */}
         <div className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6 sm:py-3.5">
           <span className="text-[13px] text-text-muted">
-            {selectedIds.length > 0
-              ? `${selectedIds.length} selected`
-              : `${issues.length} issues`}
+            {isLoading
+              ? "Loading..."
+              : selectedIds.length > 0
+                ? `${selectedIds.length} selected`
+                : `${issues.length} issues`}
           </span>
         </div>
 
         {/* Table Body */}
         <div className="flex-1 overflow-auto">
-          <IssuesTable
-            issues={issues}
-            selectedIds={selectedIds}
-            onSelectionChange={setSelectedIds}
-          />
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-sm text-text-muted">Loading issues...</p>
+            </div>
+          ) : (
+            <IssuesTable
+              issues={issues}
+              selectedIds={selectedIds}
+              onSelectionChange={setSelectedIds}
+            />
+          )}
         </div>
       </div>
     </main>
