@@ -1041,21 +1041,32 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
 
                 issues = []
                 for issue in all_issues:
+                    issue_id = issue.get("id")
                     # Get child issue count
                     child_issues = await query_records(
                         table="child_issues",
-                        filters={"master_issue_id": issue.get("id")},
+                        filters={"master_issue_id": issue_id},
                         limit=1000,
                     )
+                    # Get confidence score from fix_bundles
+                    fix_bundles = await query_records(
+                        table="fix_bundles",
+                        filters={"master_issue_id": issue_id},
+                        order_by="confidence_score",
+                        ascending=False,
+                        limit=1,
+                    )
+                    confidence = float(fix_bundles[0].get("confidence_score", 0) or 0) if fix_bundles else 0.0
                     canonical_error = issue.get("canonical_error") or ""
                     issues.append({
-                        "id": issue.get("id"),
+                        "id": issue_id,
                         "canonical_title": canonical_error[:100] if canonical_error else "",
                         "description": issue.get("root_cause", "") or "",
                         "root_cause_category": _normalize_category(issue.get("root_cause_category")),
-                        "confidence_score": float(issue.get("confidence_score", 0) or 0),
+                        "confidence_score": confidence,
                         "child_issue_count": len(child_issues),
                         "environment_coverage": issue.get("environment_coverage", []) or [],
+                        "model_provider": issue.get("model_provider") or "unknown",
                         "verification_count": issue.get("verification_count", 0) or 0,
                         "status": issue.get("status", "active"),
                         "created_at": issue.get("created_at", ""),
@@ -1108,6 +1119,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "confidence_score": r.get("similarity_score", 0) or 0,
                     "child_issue_count": 0,
                     "environment_coverage": [],
+                    "model_provider": r.get("model_provider") or "unknown",
                     "verification_count": r.get("verification_count", 0) or 0,
                     "status": "active",
                     "created_at": "",
@@ -1170,21 +1182,32 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
 
             issues = []
             for issue in all_issues:
+                issue_id = issue.get("id")
                 # Get child issue count
                 child_issues = await query_records(
                     table="child_issues",
-                    filters={"master_issue_id": issue.get("id")},
+                    filters={"master_issue_id": issue_id},
                     limit=1000,
                 )
+                # Get confidence score from fix_bundles
+                fix_bundles = await query_records(
+                    table="fix_bundles",
+                    filters={"master_issue_id": issue_id},
+                    order_by="confidence_score",
+                    ascending=False,
+                    limit=1,
+                )
+                confidence = float(fix_bundles[0].get("confidence_score", 0) or 0) if fix_bundles else 0.0
                 canonical_error = issue.get("canonical_error") or ""
                 issues.append({
-                    "id": issue.get("id"),
+                    "id": issue_id,
                     "canonical_title": canonical_error[:100] if canonical_error else "",
                     "description": issue.get("root_cause", "") or "",
                     "root_cause_category": _normalize_category(issue.get("root_cause_category")),
-                    "confidence_score": float(issue.get("confidence_score", 0) or 0),
+                    "confidence_score": confidence,
                     "child_issue_count": len(child_issues),
                     "environment_coverage": issue.get("environment_coverage", []) or [],
+                    "model_provider": issue.get("model_provider") or "unknown",
                     "verification_count": issue.get("verification_count", 0) or 0,
                     "status": issue.get("status", "active"),
                     "created_at": issue.get("created_at", ""),
@@ -1262,6 +1285,28 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 limit=1000,
             )
 
+            # Query fix_bundles for real confidence_score
+            fix_bundles = await query_records(
+                table="fix_bundles",
+                filters={"master_issue_id": issue_id},
+                order_by="created_at",
+                ascending=False,
+                limit=1,
+            )
+            best_fix = fix_bundles[0] if fix_bundles else {}
+
+            # Build environment_coverage from available fields
+            environment_coverage = []
+            model_provider = issue.get("model_provider") or "unknown"
+            language = issue.get("language") or ""
+            framework = issue.get("framework") or ""
+            if model_provider and model_provider != "unknown":
+                environment_coverage.append(model_provider)
+            if language:
+                environment_coverage.append(language)
+            if framework:
+                environment_coverage.append(framework)
+
             # Transform to frontend format
             return JSONResponse(
                 content={
@@ -1269,9 +1314,12 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "canonical_title": issue.get("canonical_error", "")[:100],
                     "description": issue.get("root_cause", ""),
                     "root_cause_category": _normalize_category(issue.get("root_cause_category")),
-                    "confidence_score": 0.8,
+                    "confidence_score": float(best_fix.get("confidence_score", 0) or 0),
                     "child_issue_count": len(child_issues),
-                    "environment_coverage": [],
+                    "environment_coverage": environment_coverage,
+                    "model_provider": model_provider,
+                    "language": language,
+                    "framework": framework,
                     "verification_count": issue.get("verification_count", 0),
                     "last_confirmed_at": issue.get("last_verified_at"),
                     "status": "active",
@@ -1336,6 +1384,27 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=200,
                 )
 
+            # Transform environment_actions to EnvAction format
+            env_actions = [
+                {
+                    "order": i + 1,
+                    "type": ea.get("action", "command"),
+                    "command": ea.get("command", ""),
+                    "explanation": ea.get("package", "") or ea.get("explanation", ""),
+                }
+                for i, ea in enumerate(fix_bundle.get("environment_actions", []) or [])
+            ]
+
+            # Transform verification_steps to VerificationStep format
+            verification = [
+                {
+                    "order": i + 1,
+                    "command": vs.get("step", "") or vs.get("command", ""),
+                    "expected_output": vs.get("expected_output", ""),
+                }
+                for i, vs in enumerate(fix_bundle.get("verification_steps", []) or [])
+            ]
+
             return JSONResponse(
                 content={
                     "content": [{
@@ -1344,10 +1413,10 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "summary": fix_bundle.get("summary", ""),
                         "fix_steps": fix_bundle.get("fix_steps", []),
                         "code_changes": fix_bundle.get("code_changes", []),
-                        "env_actions": fix_bundle.get("environment_actions", []),
+                        "env_actions": env_actions,
                         "constraints": fix_bundle.get("constraints", {}),
-                        "verification": fix_bundle.get("verification_steps", []),
-                        "confidence_score": fix_bundle.get("confidence_score", 0),
+                        "verification": verification,
+                        "confidence_score": float(fix_bundle.get("confidence_score", 0) or 0),
                         "verification_count": fix_bundle.get("verification_count", 0),
                         "version": fix_bundle.get("version", 1),
                         "is_current": fix_bundle.get("is_current", True),
@@ -1563,9 +1632,31 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             # Group by provider
             issues_by_provider: dict = {}
             for issue in all_issues:
-                provider = issue.get("model_provider", "unknown")
-                if provider:
-                    issues_by_provider[provider] = issues_by_provider.get(provider, 0) + 1
+                provider = issue.get("model_provider") or "unknown"
+                issues_by_provider[provider] = issues_by_provider.get(provider, 0) + 1
+
+            # Group issues by date for time series
+            from datetime import datetime, timedelta
+
+            issues_date_counts: dict = {}
+            for issue in all_issues:
+                created_at = issue.get("created_at", "")
+                if created_at:
+                    try:
+                        date_str = datetime.fromisoformat(
+                            created_at.replace("Z", "+00:00")
+                        ).strftime("%Y-%m-%d")
+                        issues_date_counts[date_str] = issues_date_counts.get(date_str, 0) + 1
+                    except (ValueError, AttributeError):
+                        pass
+
+            # Build time series for last 90 days, filling zeros
+            today = datetime.utcnow().date()
+            issues_over_time = []
+            for i in range(89, -1, -1):
+                d = today - timedelta(days=i)
+                date_str = d.isoformat()
+                issues_over_time.append({"date": date_str, "count": issues_date_counts.get(date_str, 0)})
 
             # Get unique contributors from child issues
             child_issues = await query_records(
@@ -1615,6 +1706,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "total_contributors": len(contributors),
                     "issues_by_category": issues_by_category,
                     "issues_by_provider": issues_by_provider,
+                    "issues_over_time": issues_over_time,
                     "recent_activity": recent_activity,
                 },
                 status_code=200,
