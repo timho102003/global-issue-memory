@@ -1020,8 +1020,20 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
 
             # If no query, return all recent issues from database
             if not query:
+                # Extract and validate filter params
+                category = arguments.get("category")
+                status_filter = arguments.get("status")
+
+                valid_statuses = {"active", "superseded", "invalid"}
+                filters = {}
+                if category and category in VALID_CATEGORIES:
+                    filters["root_cause_category"] = category
+                if status_filter and status_filter in valid_statuses:
+                    filters["status"] = status_filter
+
                 all_issues = await query_records(
                     table="master_issues",
+                    filters=filters if filters else None,
                     order_by="created_at",
                     ascending=False,
                     limit=limit,
