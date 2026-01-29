@@ -10,6 +10,10 @@ from src.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# Separator used to join sections in combined embeddings.
+# Must match between storage (generate_combined_embedding) and
+# search (generate_search_embedding) to keep vectors in the same semantic space.
+SECTION_SEPARATOR = "\n---\n"
 
 _client: Optional[genai.Client] = None
 
@@ -153,12 +157,15 @@ async def generate_embeddings_batch(
     raise last_exception  # type: ignore[misc]
 
 
-async def generate_issue_embeddings(
+async def generate_combined_embedding(
     error_message: str,
     root_cause: str,
     fix_summary: str,
-) -> dict:
-    """Generate all embeddings for an issue.
+) -> List[float]:
+    """Generate a single combined embedding for an issue.
+
+    Concatenates error message, root cause, and fix summary into one text
+    and produces a single embedding vector.
 
     Args:
         error_message: The sanitized error message.
@@ -166,19 +173,27 @@ async def generate_issue_embeddings(
         fix_summary: Fix bundle summary.
 
     Returns:
-        dict: Dictionary containing all embedding vectors.
+        List[float]: Combined embedding vector.
     """
-    embeddings = await generate_embeddings_batch([
-        error_message,
-        root_cause,
-        fix_summary,
-    ])
+    combined_text = SECTION_SEPARATOR.join([error_message, root_cause, fix_summary])
+    return await generate_embedding(combined_text)
 
-    return {
-        "error_signature": embeddings[0],
-        "root_cause": embeddings[1],
-        "fix_summary": embeddings[2],
-    }
+
+async def generate_search_embedding(error_message: str) -> List[float]:
+    """Generate an embedding for a search query.
+
+    Wraps the error message in the same section structure used by
+    generate_combined_embedding so query and stored vectors share
+    the same semantic space.
+
+    Args:
+        error_message: The sanitized error message to search for.
+
+    Returns:
+        List[float]: Search embedding vector.
+    """
+    search_text = SECTION_SEPARATOR.join([error_message, "", ""])
+    return await generate_embedding(search_text)
 
 
 async def compute_similarity(

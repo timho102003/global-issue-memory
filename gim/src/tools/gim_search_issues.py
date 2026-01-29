@@ -12,7 +12,7 @@ from src.exceptions import (
     ValidationError,
 )
 from src.logging_config import get_logger, set_request_context
-from src.services.embedding_service import generate_embedding
+from src.services.embedding_service import generate_search_embedding
 from src.services.sanitization.pipeline import quick_sanitize
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
 
@@ -91,8 +91,8 @@ and domain-specific information before processing.""",
             },
             "limit": {
                 "type": "integer",
-                "description": "Maximum results to return (1-20). Default: 5.",
-                "default": 5,
+                "description": "Maximum results to return (1-20). Default: 10.",
+                "default": 10,
                 "minimum": 1,
                 "maximum": 20,
             },
@@ -126,7 +126,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         provider = arguments.get("provider")
         language = arguments.get("language")
         framework = arguments.get("framework")
-        limit = arguments.get("limit", 5)
+        limit = arguments.get("limit", 10)
 
         if not error_message:
             raise ValidationError("error_message is required", field="error_message")
@@ -134,10 +134,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
         # Sanitize the search query
         sanitized_query, warnings = quick_sanitize(error_message)
 
-        # Generate embedding for search
+        # Generate search embedding (structured to match stored combined vectors)
         logger.debug("Generating embedding for search query")
         try:
-            query_vector = await generate_embedding(sanitized_query)
+            query_vector = await generate_search_embedding(sanitized_query)
         except Exception as e:
             logger.error(f"Embedding generation error: {e}")
             raise EmbeddingError(
@@ -154,9 +154,8 @@ async def execute(arguments: Dict[str, Any]) -> List:
         # Search Qdrant for similar issues
         vector_results = await search_similar_issues(
             query_vector=query_vector,
-            vector_name="error_signature",
             limit=limit,
-            score_threshold=0.5,
+            score_threshold=0.2,
             filters=filters,
         )
 

@@ -88,7 +88,7 @@ class TestSearchIssuesTool:
     async def test_search_with_no_results(self) -> None:
         """Test search returning no results."""
         with patch("src.tools.gim_search_issues.quick_sanitize") as mock_sanitize, \
-             patch("src.tools.gim_search_issues.generate_embedding") as mock_embed, \
+             patch("src.tools.gim_search_issues.generate_search_embedding") as mock_embed, \
              patch("src.tools.gim_search_issues.search_similar_issues") as mock_search, \
              patch("src.tools.gim_search_issues.insert_record") as mock_insert:
 
@@ -145,7 +145,7 @@ class TestSubmitIssueTool:
         """Test submitting a new master issue."""
         with patch("src.tools.gim_submit_issue.run_sanitization_pipeline") as mock_sanitize, \
              patch("src.tools.gim_submit_issue.quick_sanitize") as mock_quick, \
-             patch("src.tools.gim_submit_issue.generate_issue_embeddings") as mock_embed, \
+             patch("src.tools.gim_submit_issue.generate_combined_embedding") as mock_embed, \
              patch("src.tools.gim_submit_issue.search_similar_issues") as mock_search, \
              patch("src.tools.gim_submit_issue.insert_record") as mock_insert, \
              patch("src.tools.gim_submit_issue.upsert_issue_vectors") as mock_upsert:
@@ -161,11 +161,7 @@ class TestSubmitIssueTool:
             mock_sanitize.return_value = mock_result
 
             mock_quick.return_value = ("Sanitized text", [])
-            mock_embed.return_value = {
-                "error_signature": [0.0] * 3072,
-                "root_cause": [0.0] * 3072,
-                "fix_summary": [0.0] * 3072,
-            }
+            mock_embed.return_value = [0.0] * 3072
             mock_search.return_value = []  # No similar issues
             mock_insert.return_value = {"id": "test-id"}
             mock_upsert.return_value = None

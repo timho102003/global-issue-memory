@@ -11,6 +11,11 @@ from qdrant_client.http.models import (
     MatchValue,
     PointStruct,
     VectorParams,
+    ScalarQuantization,
+    ScalarQuantizationConfig,
+    ScalarType,
+    SearchParams,
+    QuantizationSearchParams,
 )
 from qdrant_client.http.exceptions import UnexpectedResponse
 
@@ -86,23 +91,20 @@ async def ensure_collection_exists() -> None:
 
         if COLLECTION_NAME not in collection_names:
             logger.info(f"Creating collection {COLLECTION_NAME}")
-            # Create collection with multi-vector config
+            # Create collection with single combined vector + scalar quantization
             client.create_collection(
                 collection_name=COLLECTION_NAME,
-                vectors_config={
-                    "error_signature": VectorParams(
-                        size=vector_dim,
-                        distance=Distance.COSINE,
+                vectors_config=VectorParams(
+                    size=vector_dim,
+                    distance=Distance.COSINE,
+                ),
+                quantization_config=ScalarQuantization(
+                    scalar=ScalarQuantizationConfig(
+                        type=ScalarType.INT8,
+                        quantile=0.99,
+                        always_ram=True,
                     ),
-                    "root_cause": VectorParams(
-                        size=vector_dim,
-                        distance=Distance.COSINE,
-                    ),
-                    "fix_summary": VectorParams(
-                        size=vector_dim,
-                        distance=Distance.COSINE,
-                    ),
-                },
+                ),
             )
 
             # Create payload indexes for filtering
@@ -145,18 +147,14 @@ async def ensure_collection_exists() -> None:
 @log_operation("qdrant.upsert")
 async def upsert_issue_vectors(
     issue_id: str,
-    error_signature_vector: List[float],
-    root_cause_vector: List[float],
-    fix_summary_vector: List[float],
+    vector: List[float],
     payload: Dict[str, Any],
 ) -> None:
-    """Upsert issue vectors into Qdrant.
+    """Upsert issue vector into Qdrant.
 
     Args:
         issue_id: Unique issue ID.
-        error_signature_vector: Vector for error signature.
-        root_cause_vector: Vector for root cause description.
-        fix_summary_vector: Vector for fix summary.
+        vector: Combined embedding vector for the issue.
         payload: Additional metadata payload.
 
     Raises:
@@ -168,11 +166,7 @@ async def upsert_issue_vectors(
 
         point = PointStruct(
             id=issue_id,
-            vector={
-                "error_signature": error_signature_vector,
-                "root_cause": root_cause_vector,
-                "fix_summary": fix_summary_vector,
-            },
+            vector=vector,
             payload=payload,
         )
 
@@ -204,16 +198,16 @@ async def upsert_issue_vectors(
 @log_operation("qdrant.search")
 async def search_similar_issues(
     query_vector: List[float],
-    vector_name: str = "error_signature",
     limit: int = 10,
-    score_threshold: float = 0.5,
+    score_threshold: float = 0.2,
     filters: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Search for similar issues using vector similarity.
 
+    Uses scalar quantization re-scoring for high precision and speed.
+
     Args:
         query_vector: Query embedding vector.
-        vector_name: Which vector to search against.
         limit: Maximum results to return.
         score_threshold: Minimum similarity score.
         filters: Optional filters (e.g., root_cause_category, model_provider).
@@ -241,15 +235,21 @@ async def search_similar_issues(
                 )
             query_filter = Filter(must=conditions)
 
-        # Use query_points with 'using' parameter for named vectors
+        # Query with quantization re-scoring for precision
         response = client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
-            using=vector_name,
             limit=limit,
             score_threshold=score_threshold,
             query_filter=query_filter,
             with_payload=True,
+            search_params=SearchParams(
+                quantization=QuantizationSearchParams(
+                    ignore=False,
+                    rescore=True,
+                    oversampling=2.0,
+                ),
+            ),
         )
 
         results = [
@@ -268,7 +268,7 @@ async def search_similar_issues(
             f"Failed to search similar issues: {e}",
             collection=COLLECTION_NAME,
             operation="search",
-            details={"vector_name": vector_name, "limit": limit},
+            details={"limit": limit},
             original_error=e,
         )
     except Exception as e:
@@ -277,7 +277,7 @@ async def search_similar_issues(
             f"Failed to search similar issues: {str(e)}",
             collection=COLLECTION_NAME,
             operation="search",
-            details={"vector_name": vector_name, "limit": limit},
+            details={"limit": limit},
             original_error=e,
         )
 

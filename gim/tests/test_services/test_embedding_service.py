@@ -6,9 +6,11 @@ from unittest.mock import MagicMock, patch
 from src.services.embedding_service import (
     generate_embedding,
     generate_embeddings_batch,
-    generate_issue_embeddings,
+    generate_combined_embedding,
+    generate_search_embedding,
     compute_similarity,
     _get_embedding_dimensions,
+    SECTION_SEPARATOR,
 )
 
 
@@ -147,17 +149,17 @@ class TestGenerateEmbeddingsBatchMocked:
             assert result[1] == [0.5] * 3072
 
 
-class TestGenerateIssueEmbeddingsMocked:
-    """Tests for generate_issue_embeddings with mocked API."""
+class TestGenerateCombinedEmbeddingMocked:
+    """Tests for generate_combined_embedding with mocked API."""
 
     @pytest.mark.asyncio
-    async def test_returns_all_embedding_keys(self) -> None:
-        """Test that result contains all expected keys."""
+    async def test_returns_single_vector(self) -> None:
+        """Test that result is a single embedding vector."""
         mock_embedding = MagicMock()
         mock_embedding.values = [0.1] * 3072
 
         mock_response = MagicMock()
-        mock_response.embeddings = [mock_embedding, mock_embedding, mock_embedding]
+        mock_response.embeddings = [mock_embedding]
 
         mock_client = MagicMock()
         mock_client.models.embed_content.return_value = mock_response
@@ -167,18 +169,93 @@ class TestGenerateIssueEmbeddingsMocked:
             mock_settings.return_value.embedding_model = "gemini-embedding-001"
             mock_settings.return_value.embedding_dimensions = 3072
 
-            result = await generate_issue_embeddings(
+            result = await generate_combined_embedding(
                 error_message="TypeError: x is undefined",
                 root_cause="Variable not initialized",
                 fix_summary="Initialize variable before use",
             )
 
-            assert "error_signature" in result
-            assert "root_cause" in result
-            assert "fix_summary" in result
-            assert len(result["error_signature"]) == 3072
-            assert len(result["root_cause"]) == 3072
-            assert len(result["fix_summary"]) == 3072
+            assert isinstance(result, list)
+            assert len(result) == 3072
+            assert result == [0.1] * 3072
+
+    @pytest.mark.asyncio
+    async def test_concatenates_texts(self) -> None:
+        """Test that texts are concatenated with separator."""
+        mock_embedding = MagicMock()
+        mock_embedding.values = [0.2] * 3072
+
+        mock_response = MagicMock()
+        mock_response.embeddings = [mock_embedding]
+
+        mock_client = MagicMock()
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch("src.services.embedding_service._get_client", return_value=mock_client), \
+             patch("src.services.embedding_service.get_settings") as mock_settings:
+            mock_settings.return_value.embedding_model = "gemini-embedding-001"
+            mock_settings.return_value.embedding_dimensions = 3072
+
+            await generate_combined_embedding(
+                error_message="error msg",
+                root_cause="cause",
+                fix_summary="fix",
+            )
+
+            call_args = mock_client.models.embed_content.call_args
+            embedded_text = call_args.kwargs["contents"]
+            expected = SECTION_SEPARATOR.join(["error msg", "cause", "fix"])
+            assert embedded_text == expected
+
+
+class TestGenerateSearchEmbeddingMocked:
+    """Tests for generate_search_embedding with mocked API."""
+
+    @pytest.mark.asyncio
+    async def test_returns_single_vector(self) -> None:
+        """Test that search embedding returns a single vector."""
+        mock_embedding = MagicMock()
+        mock_embedding.values = [0.3] * 3072
+
+        mock_response = MagicMock()
+        mock_response.embeddings = [mock_embedding]
+
+        mock_client = MagicMock()
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch("src.services.embedding_service._get_client", return_value=mock_client), \
+             patch("src.services.embedding_service.get_settings") as mock_settings:
+            mock_settings.return_value.embedding_model = "gemini-embedding-001"
+            mock_settings.return_value.embedding_dimensions = 3072
+
+            result = await generate_search_embedding("TypeError: x is undefined")
+
+            assert isinstance(result, list)
+            assert len(result) == 3072
+
+    @pytest.mark.asyncio
+    async def test_wraps_query_in_section_structure(self) -> None:
+        """Test that search query is wrapped in same section structure as combined embedding."""
+        mock_embedding = MagicMock()
+        mock_embedding.values = [0.3] * 3072
+
+        mock_response = MagicMock()
+        mock_response.embeddings = [mock_embedding]
+
+        mock_client = MagicMock()
+        mock_client.models.embed_content.return_value = mock_response
+
+        with patch("src.services.embedding_service._get_client", return_value=mock_client), \
+             patch("src.services.embedding_service.get_settings") as mock_settings:
+            mock_settings.return_value.embedding_model = "gemini-embedding-001"
+            mock_settings.return_value.embedding_dimensions = 3072
+
+            await generate_search_embedding("some error")
+
+            call_args = mock_client.models.embed_content.call_args
+            embedded_text = call_args.kwargs["contents"]
+            expected = SECTION_SEPARATOR.join(["some error", "", ""])
+            assert embedded_text == expected
 
 
 class TestGenerateEmbeddingIntegration:

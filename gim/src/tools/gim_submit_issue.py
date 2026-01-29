@@ -16,7 +16,7 @@ from src.exceptions import (
     ValidationError,
 )
 from src.logging_config import get_logger, set_request_context
-from src.services.embedding_service import generate_issue_embeddings
+from src.services.embedding_service import generate_combined_embedding
 from src.services.sanitization.pipeline import run_sanitization_pipeline, quick_sanitize
 from src.services.contribution_classifier import classify_contribution_type
 from src.services.environment_extractor import extract_environment_info
@@ -259,10 +259,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
         sanitized_fix_summary, _ = quick_sanitize(fix_summary)
         sanitized_fix_steps = [quick_sanitize(step)[0] for step in fix_steps]
 
-        # Generate embeddings for similarity search
-        logger.debug("Generating embeddings")
+        # Generate combined embedding for similarity search
+        logger.debug("Generating combined embedding")
         try:
-            embeddings = await generate_issue_embeddings(
+            embedding = await generate_combined_embedding(
                 error_message=sanitization_result.sanitized_error,
                 root_cause=sanitized_root_cause,
                 fix_summary=sanitized_fix_summary,
@@ -277,8 +277,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
         # Check for similar existing issues
         settings = get_settings()
         similar_issues = await search_similar_issues(
-            query_vector=embeddings["error_signature"],
-            vector_name="error_signature",
+            query_vector=embedding,
             limit=5,
             score_threshold=settings.similarity_merge_threshold,
         )
@@ -377,12 +376,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 },
             )
 
-            # Store vectors in Qdrant
+            # Store vector in Qdrant
             await upsert_issue_vectors(
                 issue_id=issue_id,
-                error_signature_vector=embeddings["error_signature"],
-                root_cause_vector=embeddings["root_cause"],
-                fix_summary_vector=embeddings["fix_summary"],
+                vector=embedding,
                 payload={
                     "issue_id": issue_id,
                     "root_cause_category": root_cause_category,
