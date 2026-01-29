@@ -179,10 +179,10 @@ export default function IssueDetailPage({
           {/* Code Block */}
           <Card>
             <CardHeader>
-              <CardTitle>Example Code</CardTitle>
+              <CardTitle>{displayFixBundle.code_fix ? "Code Fix" : "Example Code"}</CardTitle>
             </CardHeader>
             <CardContent>
-              <CodeBlock code={mockCodeExample} language="python" />
+              <CodeBlock code={displayFixBundle.code_fix || mockCodeExample} language="python" />
             </CardContent>
           </Card>
 
