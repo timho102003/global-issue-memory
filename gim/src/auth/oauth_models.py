@@ -57,14 +57,19 @@ class OAuthClientRegistrationRequest(BaseModel):
     def validate_redirect_uris(cls, v: list[str]) -> list[str]:
         """Validate redirect URIs are valid.
 
+        Allows:
+        - HTTP(S) schemes for web apps
+        - Custom URI schemes for native apps (RFC 8252), e.g., cursor://, vscode://
+
         Rejects URIs with:
-        - Non-HTTP(S) schemes
         - Fragment components (#)
         - Wildcard characters (*)
+        - Missing scheme (://)
         """
         for uri in v:
-            if not uri.startswith(("http://", "https://")):
-                raise ValueError(f"Invalid redirect URI scheme: {uri}")
+            # Must have a scheme
+            if "://" not in uri:
+                raise ValueError(f"Invalid redirect URI (missing scheme): {uri}")
             if "#" in uri:
                 raise ValueError(f"Redirect URI must not contain fragments: {uri}")
             if "*" in uri:
@@ -243,6 +248,8 @@ class OAuthError(BaseModel):
     error: str
     error_description: Optional[str] = None
     error_uri: Optional[str] = None
+
+    model_config = {"exclude_none": True}
 
 
 class OAuthServerMetadata(BaseModel):
