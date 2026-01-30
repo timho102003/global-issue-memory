@@ -117,34 +117,26 @@ class TestSearchIssuesEndpoint:
         """Test search with empty query returns empty results."""
         try:
             from src.server import create_mcp_server
-            from src.tools.gim_search_issues import search_issues_tool
             from starlette.testclient import TestClient
+            import src.server as server_module
         except ImportError:
             pytest.skip("Required dependencies not installed")
 
-        mock_text = MagicMock()
-        mock_text.text = json.dumps({
-            "success": True,
-            "message": "No matching issues found in GIM",
-            "results": [],
-            "sanitization_warnings": [],
-        })
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", new_callable=AsyncMock, return_value=[]):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-        with patch.object(search_issues_tool, "execute",
-                          new_callable=AsyncMock, return_value=[mock_text]):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {}},
+                    )
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {}},
-                )
-
-                assert response.status_code == 200
-                data = response.json()
-                assert data["issues"] == []
-                assert data["total"] == 0
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["issues"] == []
+                    assert data["total"] == 0
 
 
 class TestGetIssueEndpoint:
@@ -740,21 +732,22 @@ class TestSearchIssuesProviderFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {"provider": "anthropic"}},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {"provider": "anthropic"}},
+                    )
 
-                assert response.status_code == 200
-                # Verify that model_provider was passed in filters
-                filters = captured_kwargs.get("filters")
-                assert filters is not None
-                assert filters.get("model_provider") == "anthropic"
+                    assert response.status_code == 200
+                    # Verify that model_provider was passed in filters
+                    filters = captured_kwargs.get("filters")
+                    assert filters is not None
+                    assert filters.get("model_provider") == "anthropic"
 
     @pytest.mark.asyncio
     async def test_no_provider_filter_when_not_specified(self) -> None:
@@ -774,20 +767,21 @@ class TestSearchIssuesProviderFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {}},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {}},
+                    )
 
-                assert response.status_code == 200
-                filters = captured_kwargs.get("filters")
-                # When no filters, filters should be None
-                assert filters is None or "model_provider" not in filters
+                    assert response.status_code == 200
+                    filters = captured_kwargs.get("filters")
+                    # When no filters, filters should be None
+                    assert filters is None or "model_provider" not in filters
 
 
 class TestSearchIssuesTimeRangeFilter:
@@ -811,24 +805,25 @@ class TestSearchIssuesTimeRangeFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {"time_range": "7d"}},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {"time_range": "7d"}},
+                    )
 
-                assert response.status_code == 200
-                gte_filters = captured_kwargs.get("gte_filters")
-                assert gte_filters is not None
-                assert "created_at" in gte_filters
-                # Verify the cutoff is approximately 7 days ago
-                cutoff = datetime.fromisoformat(gte_filters["created_at"])
-                expected = datetime.now(timezone.utc) - timedelta(days=7)
-                assert abs((cutoff - expected).total_seconds()) < 5
+                    assert response.status_code == 200
+                    gte_filters = captured_kwargs.get("gte_filters")
+                    assert gte_filters is not None
+                    assert "created_at" in gte_filters
+                    # Verify the cutoff is approximately 7 days ago
+                    cutoff = datetime.fromisoformat(gte_filters["created_at"])
+                    expected = datetime.now(timezone.utc) - timedelta(days=7)
+                    assert abs((cutoff - expected).total_seconds()) < 5
 
     @pytest.mark.asyncio
     async def test_invalid_time_range_no_gte_filter(self) -> None:
@@ -848,19 +843,20 @@ class TestSearchIssuesTimeRangeFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {"time_range": "invalid"}},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {"time_range": "invalid"}},
+                    )
 
-                assert response.status_code == 200
-                gte_filters = captured_kwargs.get("gte_filters")
-                assert gte_filters is None
+                    assert response.status_code == 200
+                    gte_filters = captured_kwargs.get("gte_filters")
+                    assert gte_filters is None
 
     @pytest.mark.asyncio
     async def test_no_time_range_no_gte_filter(self) -> None:
@@ -880,19 +876,20 @@ class TestSearchIssuesTimeRangeFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {}},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {}},
+                    )
 
-                assert response.status_code == 200
-                gte_filters = captured_kwargs.get("gte_filters")
-                assert gte_filters is None
+                    assert response.status_code == 200
+                    gte_filters = captured_kwargs.get("gte_filters")
+                    assert gte_filters is None
 
     @pytest.mark.asyncio
     async def test_combined_provider_and_time_range(self) -> None:
@@ -912,29 +909,30 @@ class TestSearchIssuesTimeRangeFilter:
                 return []
             return []
 
-        with patch.object(server_module, "query_records", side_effect=mock_query_records):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query_records):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
 
-                response = client.post(
-                    "/mcp/tools/gim_search_issues",
-                    json={"arguments": {
-                        "provider": "openai",
-                        "time_range": "30d",
-                        "status": "active",
-                    }},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {
+                            "provider": "openai",
+                            "time_range": "30d",
+                            "status": "active",
+                        }},
+                    )
 
-                assert response.status_code == 200
-                filters = captured_kwargs.get("filters")
-                assert filters is not None
-                assert filters.get("model_provider") == "openai"
-                assert filters.get("status") == "active"
+                    assert response.status_code == 200
+                    filters = captured_kwargs.get("filters")
+                    assert filters is not None
+                    assert filters.get("model_provider") == "openai"
+                    assert filters.get("status") == "active"
 
-                gte_filters = captured_kwargs.get("gte_filters")
-                assert gte_filters is not None
-                assert "created_at" in gte_filters
+                    gte_filters = captured_kwargs.get("gte_filters")
+                    assert gte_filters is not None
+                    assert "created_at" in gte_filters
 
 
 class TestGetIssueChildResolution:
@@ -1291,3 +1289,149 @@ class TestGetFixBundleChildResolution:
                 assert parsed["master_issue_id"] == master_id
                 assert parsed["is_child_issue"] is True
                 assert parsed["child_issue_id"] == child_id
+
+
+class TestSearchIssuesPagination:
+    """Tests for pagination in the no-query search path."""
+
+    @pytest.mark.asyncio
+    async def test_search_returns_total_from_count_records(self) -> None:
+        """Test that total comes from count_records, not len(issues)."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        mock_issues = [
+            {
+                "id": str(uuid4()),
+                "canonical_error": "Error A",
+                "root_cause": "Cause A",
+                "root_cause_category": "environment",
+                "status": "active",
+                "model_provider": "anthropic",
+                "verification_count": 1,
+                "environment_coverage": [],
+                "created_at": "2024-01-01T00:00:00Z",
+                "updated_at": "2024-01-01T00:00:00Z",
+            },
+        ]
+
+        async def mock_query(table, **kwargs):
+            if table == "master_issues":
+                return mock_issues
+            if table == "child_issues":
+                return []
+            if table == "fix_bundles":
+                return []
+            return []
+
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=50):
+            with patch.object(server_module, "query_records", side_effect=mock_query):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
+
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {"limit": 20}},
+                    )
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    # total should be 50 (from count_records), not 1 (len of returned issues)
+                    assert data["total"] == 50
+                    assert len(data["issues"]) == 1
+
+    @pytest.mark.asyncio
+    async def test_search_passes_offset_to_query_records(self) -> None:
+        """Test that offset is forwarded to query_records."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "count_records", new_callable=AsyncMock, return_value=0):
+            with patch.object(server_module, "query_records", side_effect=mock_query):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
+
+                    response = client.post(
+                        "/mcp/tools/gim_search_issues",
+                        json={"arguments": {"limit": 20, "offset": 40}},
+                    )
+
+                    assert response.status_code == 200
+                    assert captured_kwargs.get("offset") == 40
+                    assert captured_kwargs.get("limit") == 20
+                    data = response.json()
+                    assert data["offset"] == 40
+                    assert data["limit"] == 20
+
+    @pytest.mark.asyncio
+    async def test_semantic_search_total_is_len_issues(self) -> None:
+        """Test that semantic search path returns len(issues) as total."""
+        try:
+            from src.server import create_mcp_server
+            from src.tools.gim_search_issues import search_issues_tool
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        mock_text = MagicMock()
+        mock_text.text = json.dumps({
+            "success": True,
+            "message": "Found 2 matching issue(s)",
+            "results": [
+                {
+                    "issue_id": str(uuid4()),
+                    "similarity_score": 0.9,
+                    "canonical_error": "Error 1",
+                    "root_cause": "Cause 1",
+                    "root_cause_category": "environment",
+                    "verification_count": 3,
+                    "has_fix_bundle": True,
+                    "fix_summary": "Fix 1",
+                },
+                {
+                    "issue_id": str(uuid4()),
+                    "similarity_score": 0.8,
+                    "canonical_error": "Error 2",
+                    "root_cause": "Cause 2",
+                    "root_cause_category": "api_integration",
+                    "verification_count": 1,
+                    "has_fix_bundle": False,
+                    "fix_summary": "",
+                },
+            ],
+            "sanitization_warnings": [],
+        })
+
+        with patch.object(search_issues_tool, "execute",
+                          new_callable=AsyncMock, return_value=[mock_text]):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {"query": "some error"}},
+                )
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["total"] == 2
+                assert len(data["issues"]) == 2

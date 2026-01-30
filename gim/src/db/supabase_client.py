@@ -215,6 +215,7 @@ def _sync_query(
     order_by: Optional[str],
     ascending: bool,
     gte_filters: Optional[Dict[str, Any]] = None,
+    offset: int = 0,
 ) -> Any:
     """Synchronous query operation."""
     query = client.table(table).select(select)
@@ -230,7 +231,7 @@ def _sync_query(
     if order_by:
         query = query.order(order_by, desc=not ascending)
 
-    query = query.limit(limit)
+    query = query.range(offset, offset + limit - 1)
     return query.execute()
 
 
@@ -243,6 +244,7 @@ async def query_records(
     order_by: Optional[str] = None,
     ascending: bool = False,
     gte_filters: Optional[Dict[str, Any]] = None,
+    offset: int = 0,
 ) -> List[Dict[str, Any]]:
     """Query records from a table.
 
@@ -254,6 +256,7 @@ async def query_records(
         order_by: Column to order by.
         ascending: Sort order.
         gte_filters: Dictionary of column->value for >= comparisons.
+        offset: Number of records to skip.
 
     Returns:
         List[Dict[str, Any]]: List of records.
@@ -266,7 +269,10 @@ async def query_records(
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            partial(_sync_query, client, table, filters, select, limit, order_by, ascending, gte_filters),
+            partial(
+                _sync_query, client, table, filters, select, limit,
+                order_by, ascending, gte_filters, offset,
+            ),
         )
         record_count = len(result.data or [])
         logger.debug(f"Queried {record_count} records from {table}")
@@ -277,7 +283,7 @@ async def query_records(
             f"Failed to query records: {e.message}",
             table=table,
             operation="query",
-            details={"filters": filters, "limit": limit},
+            details={"filters": filters, "limit": limit, "offset": offset},
             original_error=e,
         )
     except Exception as e:
@@ -286,7 +292,87 @@ async def query_records(
             f"Failed to query records: {str(e)}",
             table=table,
             operation="query",
-            details={"filters": filters, "limit": limit},
+            details={"filters": filters, "limit": limit, "offset": offset},
+            original_error=e,
+        )
+
+
+def _sync_count(
+    client: Client,
+    table: str,
+    filters: Optional[Dict[str, Any]],
+    gte_filters: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Synchronous count operation.
+
+    Uses PostgREST exact count with zero rows for efficiency.
+
+    Args:
+        client: Supabase client instance.
+        table: Table name.
+        filters: Dictionary of column->value equality filters.
+        gte_filters: Dictionary of column->value for >= comparisons.
+
+    Returns:
+        int: Total number of matching rows.
+    """
+    query = client.table(table).select("*", count="exact").limit(0)
+
+    if filters:
+        for column, value in filters.items():
+            query = query.eq(column, value)
+
+    if gte_filters:
+        for column, value in gte_filters.items():
+            query = query.gte(column, value)
+
+    result = query.execute()
+    return result.count or 0
+
+
+@log_operation("supabase.count")
+async def count_records(
+    table: str,
+    filters: Optional[Dict[str, Any]] = None,
+    gte_filters: Optional[Dict[str, Any]] = None,
+) -> int:
+    """Count matching records in a table without transferring data.
+
+    Args:
+        table: Table name.
+        filters: Dictionary of column->value equality filters.
+        gte_filters: Dictionary of column->value for >= comparisons.
+
+    Returns:
+        int: Total number of matching rows.
+
+    Raises:
+        SupabaseError: If count query fails.
+    """
+    try:
+        client = get_supabase_client()
+        loop = asyncio.get_event_loop()
+        total = await loop.run_in_executor(
+            None, partial(_sync_count, client, table, filters, gte_filters)
+        )
+        logger.debug(f"Counted {total} records in {table}")
+        return total
+    except APIError as e:
+        logger.error(f"Supabase API error during count on {table}: {e.message}")
+        raise SupabaseError(
+            f"Failed to count records: {e.message}",
+            table=table,
+            operation="count",
+            details={"filters": filters},
+            original_error=e,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error during count on {table}: {e}")
+        raise SupabaseError(
+            f"Failed to count records: {str(e)}",
+            table=table,
+            operation="count",
+            details={"filters": filters},
             original_error=e,
         )
 

@@ -91,7 +91,7 @@ from src.auth.models import (
     TokenRequest,
 )
 from src.db.issue_resolver import resolve_issue_id
-from src.db.supabase_client import get_record, query_records
+from src.db.supabase_client import count_records, get_record, query_records
 from src.auth.oauth_models import (
     OAuthAuthorizationRequest,
     OAuthClientRegistrationRequest,
@@ -1086,6 +1086,12 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     if cutoff:
                         gte_filters = {"created_at": cutoff}
 
+                total_count = await count_records(
+                    table="master_issues",
+                    filters=filters if filters else None,
+                    gte_filters=gte_filters,
+                )
+
                 all_issues = await query_records(
                     table="master_issues",
                     filters=filters if filters else None,
@@ -1093,6 +1099,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     order_by="created_at",
                     ascending=False,
                     limit=limit,
+                    offset=offset,
                 )
 
                 issues = []
@@ -1132,7 +1139,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 return JSONResponse(
                     content={
                         "issues": issues,
-                        "total": len(issues),
+                        "total": total_count,
                         "limit": limit,
                         "offset": offset,
                     },
