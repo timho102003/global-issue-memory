@@ -39,11 +39,14 @@ class JWTService:
             audience: Token audience (defaults to settings).
             ttl_hours: Token TTL in hours (defaults to settings).
         """
-        settings = get_settings()
-        self._secret_key = secret_key or settings.jwt_secret_key
-        self._issuer = issuer or settings.auth_issuer
-        self._audience = audience or settings.auth_audience
-        self._ttl_hours = ttl_hours or settings.access_token_ttl_hours
+        if any(v is None for v in (secret_key, issuer, audience, ttl_hours)):
+            settings = get_settings()
+        else:
+            settings = None
+        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key
+        self._issuer = issuer if issuer is not None else settings.auth_issuer
+        self._audience = audience if audience is not None else settings.auth_audience
+        self._ttl_hours = ttl_hours if ttl_hours is not None else settings.access_token_ttl_hours
         self._algorithm = "HS256"
 
     def create_token(

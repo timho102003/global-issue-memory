@@ -37,10 +37,13 @@ class GIMTokenVerifier:
             issuer: Expected token issuer (defaults to settings).
             audience: Expected token audience (defaults to settings).
         """
-        settings = get_settings()
-        self._secret_key = secret_key or settings.jwt_secret_key
-        self._issuer = issuer or settings.auth_issuer
-        self._audience = audience or settings.auth_audience
+        if any(v is None for v in (secret_key, issuer, audience)):
+            settings = get_settings()
+        else:
+            settings = None
+        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key
+        self._issuer = issuer if issuer is not None else settings.auth_issuer
+        self._audience = audience if audience is not None else settings.auth_audience
         self._algorithm = "HS256"
 
     def verify(self, token: str) -> Optional[JWTClaims]:
