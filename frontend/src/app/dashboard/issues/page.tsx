@@ -1,9 +1,12 @@
 "use client";
 
 import { useState, useCallback } from "react";
+import { SlidersHorizontal } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { SearchBox } from "@/components/ui/search-box";
-import { IssuesTable } from "@/components/dashboard/issues-table";
+import { CategoryFilterBar } from "@/components/dashboard/category-filter-bar";
+import { IssueCardList } from "@/components/dashboard/issue-card-list";
+import { IssuesSkeleton } from "@/components/dashboard/issues-skeleton";
 import { Button } from "@/components/ui/button";
 import { useIssueSearch } from "@/lib/hooks/use-issues";
 
@@ -44,7 +47,7 @@ function generatePageNumbers(current: number, total: number): number[] {
 }
 
 /**
- * Issue Explorer page matching GIM.pen design (yHuOd).
+ * Issue Explorer page with card-based layout and category pill filters.
  */
 export default function IssuesPage() {
   const [search, setSearch] = useState("");
@@ -53,6 +56,7 @@ export default function IssuesPage() {
   const [provider, setProvider] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<string>("all");
   const [page, setPage] = useState(0);
+  const [showFilters, setShowFilters] = useState(false);
 
   const isSearchActive = !!search;
 
@@ -75,184 +79,151 @@ export default function IssuesPage() {
 
   const resetPage = useCallback(() => setPage(0), []);
 
+  const hasSecondaryFilters = provider !== "all" || status !== "all" || timeRange !== "all";
+
   return (
     <main className="flex flex-1 flex-col gap-6 py-6 sm:py-8">
       {/* Page Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">Issues</h1>
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
+          Issues
+        </h1>
+        <p className="mt-1 text-sm text-text-muted">
+          Community-verified fixes for AI coding tool issues
+        </p>
       </div>
 
-      {/* Issues Card */}
-      <div className="flex flex-col overflow-hidden rounded-2xl border border-border-light/80 bg-white shadow-[var(--shadow-card)]">
-        {/* Filters */}
-        <div className="flex flex-col gap-3 border-b border-border-soft px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
-          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-            <Select
-              value={category}
-              onChange={(e) => { setCategory(e.target.value); resetPage(); }}
-              className="w-full sm:w-[140px]"
-            >
-              <option value="all">All Categories</option>
-              <option value="environment">Environment</option>
-              <option value="model_behavior">Model</option>
-              <option value="api_integration">API</option>
-              <option value="code_generation">Codegen</option>
-              <option value="framework_specific">Framework</option>
-            </Select>
-            <Select
-              value={provider}
-              onChange={(e) => { setProvider(e.target.value); resetPage(); }}
-              className="w-full sm:w-[140px]"
-            >
-              <option value="all">All Providers</option>
-              <option value="openai">OpenAI</option>
-              <option value="anthropic">Anthropic</option>
-              <option value="google">Google</option>
-              <option value="mistral">Mistral</option>
-            </Select>
-            <Select
-              value={status}
-              onChange={(e) => { setStatus(e.target.value); resetPage(); }}
-              className="w-full sm:w-[120px]"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Verified</option>
-              <option value="superseded">Pending</option>
-              <option value="invalid">Declined</option>
-            </Select>
-            <Select
-              value={timeRange}
-              onChange={(e) => { setTimeRange(e.target.value); resetPage(); }}
-              className="w-full sm:w-[140px]"
-            >
-              <option value="all">All Time</option>
-              <option value="1d">Last 24 Hours</option>
-              <option value="7d">Past 7 Days</option>
-              <option value="30d">Past 30 Days</option>
-              <option value="90d">Past 90 Days</option>
-            </Select>
-          </div>
+      {/* Filters Tier 1: Category pills + Search */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <CategoryFilterBar
+          value={category}
+          onChange={(val) => { setCategory(val); resetPage(); }}
+        />
+        <div className="flex items-center gap-2">
           <SearchBox
             placeholder="Search issues..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); resetPage(); }}
             className="w-full sm:w-[260px]"
           />
+          {/* Mobile filter toggle */}
+          <button
+            onClick={() => setShowFilters((v) => !v)}
+            className={`flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3 text-xs font-medium transition-colors duration-150 sm:hidden ${
+              hasSecondaryFilters || showFilters
+                ? "border-primary bg-primary/5 text-primary"
+                : "border-border-light bg-white text-text-secondary hover:border-border-medium"
+            }`}
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            Filters
+          </button>
         </div>
-
-        {/* Issue count */}
-        <div className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6 sm:py-3.5">
-          <span className="text-[13px] text-text-muted">
-            {isLoading
-              ? "Loading..."
-              : isSearchActive
-                ? `${issues.length} results`
-                : total === 0
-                  ? "0 issues"
-                  : `Showing ${rangeStart}\u2013${rangeEnd} of ${total} issues`}
-          </span>
-        </div>
-
-        {/* Table / Card list */}
-        <div className="flex-1 overflow-auto">
-          {isLoading ? (
-            <IssuesTableSkeleton />
-          ) : (
-            <IssuesTable issues={issues} />
-          )}
-        </div>
-
-        {/* Pagination */}
-        {showPagination && (
-          <div className="flex items-center justify-center gap-1.5 border-t border-border-soft px-5 py-3 sm:px-6 sm:py-4">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.max(0, p - 1))}
-              disabled={page === 0}
-            >
-              Previous
-            </Button>
-
-            <div className="flex items-center gap-1">
-              {generatePageNumbers(page, totalPages).map((p, idx) =>
-                p === -1 ? (
-                  <span
-                    key={`ellipsis-${idx}`}
-                    className="flex h-8 w-8 items-center justify-center text-xs text-text-muted"
-                  >
-                    &hellip;
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    onClick={() => setPage(p)}
-                    className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors duration-150 ${
-                      p === page
-                        ? "bg-[#2D2A26] text-white"
-                        : "text-text-secondary hover:bg-bg-tertiary"
-                    }`}
-                  >
-                    {p + 1}
-                  </button>
-                )
-              )}
-            </div>
-
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
-              disabled={page >= totalPages - 1}
-            >
-              Next
-            </Button>
-          </div>
-        )}
       </div>
+
+      {/* Filters Tier 2: Provider, Status, Time Range (collapsible on mobile) */}
+      <div className={`flex flex-wrap items-center gap-2 sm:gap-3 ${showFilters ? "" : "hidden sm:flex"}`}>
+        <Select
+          value={provider}
+          onChange={(e) => { setProvider(e.target.value); resetPage(); }}
+          className="w-full sm:w-[140px]"
+        >
+          <option value="all">All Providers</option>
+          <option value="openai">OpenAI</option>
+          <option value="anthropic">Anthropic</option>
+          <option value="google">Google</option>
+          <option value="mistral">Mistral</option>
+        </Select>
+        <Select
+          value={status}
+          onChange={(e) => { setStatus(e.target.value); resetPage(); }}
+          className="w-full sm:w-[120px]"
+        >
+          <option value="all">All Status</option>
+          <option value="active">Verified</option>
+          <option value="superseded">Pending</option>
+          <option value="invalid">Declined</option>
+        </Select>
+        <Select
+          value={timeRange}
+          onChange={(e) => { setTimeRange(e.target.value); resetPage(); }}
+          className="w-full sm:w-[140px]"
+        >
+          <option value="all">All Time</option>
+          <option value="1d">Last 24 Hours</option>
+          <option value="7d">Past 7 Days</option>
+          <option value="30d">Past 30 Days</option>
+          <option value="90d">Past 90 Days</option>
+        </Select>
+      </div>
+
+      {/* Issue count */}
+      <div className="flex items-center justify-between">
+        <span className="text-[13px] text-text-muted">
+          {isLoading
+            ? "Loading..."
+            : isSearchActive
+              ? `${issues.length} results`
+              : total === 0
+                ? "0 issues"
+                : `Showing ${rangeStart}\u2013${rangeEnd} of ${total} issues`}
+        </span>
+      </div>
+
+      {/* Card list */}
+      {isLoading ? (
+        <IssuesSkeleton />
+      ) : (
+        <IssueCardList issues={issues} />
+      )}
+
+      {/* Pagination */}
+      {showPagination && (
+        <div className="flex items-center justify-center gap-1.5 py-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.max(0, p - 1))}
+            disabled={page === 0}
+          >
+            Previous
+          </Button>
+
+          <div className="flex items-center gap-1">
+            {generatePageNumbers(page, totalPages).map((p, idx) =>
+              p === -1 ? (
+                <span
+                  key={`ellipsis-${idx}`}
+                  className="flex h-8 w-8 items-center justify-center text-xs text-text-muted"
+                >
+                  &hellip;
+                </span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-medium transition-colors duration-150 ${
+                    p === page
+                      ? "bg-[#2D2A26] text-white"
+                      : "text-text-secondary hover:bg-bg-tertiary"
+                  }`}
+                >
+                  {p + 1}
+                </button>
+              )
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+            disabled={page >= totalPages - 1}
+          >
+            Next
+          </Button>
+        </div>
+      )}
     </main>
-  );
-}
-
-/**
- * Skeleton loading state — desktop shows table rows, mobile shows cards.
- */
-function IssuesTableSkeleton() {
-  return (
-    <>
-      {/* Desktop skeleton */}
-      <div className="hidden divide-y divide-border-soft md:block">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-4 px-6 py-4">
-            <div className="flex min-w-0 flex-1 flex-col gap-2">
-              <div className="h-4 w-3/4 animate-pulse rounded bg-bg-tertiary" />
-            </div>
-            <div className="h-6 w-20 animate-pulse rounded-full bg-bg-tertiary" />
-            <div className="h-4 w-16 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-4 w-12 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-4 w-20 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-6 w-16 animate-pulse rounded-full bg-bg-tertiary" />
-          </div>
-        ))}
-      </div>
-
-      {/* Mobile skeleton */}
-      <div className="divide-y divide-border-soft md:hidden">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="flex flex-col gap-2.5 px-4 py-4 sm:px-5">
-            <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
-            <div className="flex gap-2">
-              <div className="h-5 w-16 animate-pulse rounded-full bg-bg-tertiary" />
-              <div className="h-5 w-14 animate-pulse rounded-full bg-bg-tertiary" />
-            </div>
-            <div className="flex gap-4">
-              <div className="h-3 w-16 animate-pulse rounded bg-bg-tertiary" />
-              <div className="h-3 w-20 animate-pulse rounded bg-bg-tertiary" />
-              <div className="h-3 w-16 animate-pulse rounded bg-bg-tertiary" />
-            </div>
-          </div>
-        ))}
-      </div>
-    </>
   );
 }
