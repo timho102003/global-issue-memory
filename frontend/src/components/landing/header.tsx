@@ -17,7 +17,7 @@ export function Header({ onCtaClick }: HeaderProps) {
 
   return (
     <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-bg-gradient-start/80">
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between px-5 sm:px-8 lg:px-12">
+      <div className="relative mx-auto flex h-16 max-w-[1200px] items-center justify-between px-5 sm:px-8 lg:px-12">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
           <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-gradient-to-br from-[#D4A853] to-[#B8860B] shadow-sm">
@@ -26,8 +26,8 @@ export function Header({ onCtaClick }: HeaderProps) {
           <span className="text-lg font-bold tracking-tight text-text-primary">GIM</span>
         </Link>
 
-        {/* Desktop Navigation */}
-        <nav className="hidden items-center gap-8 md:flex">
+        {/* Desktop Navigation — absolutely centered */}
+        <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
           <a href="#how-it-works" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
             How It Works
           </a>

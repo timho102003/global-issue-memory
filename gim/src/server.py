@@ -13,49 +13,68 @@ It stores RESOLVED issues and their verified fixes, enabling all AI assistants t
 learn from each other's solutions.
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  ⚠️  CRITICAL: Call gim_search_issues FIRST when you encounter ANY error!  │
-│  Before attempting to solve an error yourself, check if a solution exists. │
+│  CRITICAL: Call gim_search_issues FIRST when you encounter ANY error!       │
+│  Before attempting to solve an error yourself, check if a solution exists.  │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│  MANDATORY: After resolving ANY error, you MUST complete these steps:       │
+│                                                                             │
+│  1. Call gim_submit_issue with the error, root cause, and fix steps.        │
+│     This applies whether you solved it yourself OR used a GIM fix.          │
+│                                                                             │
+│  2. If you applied a fix from gim_get_fix_bundle, ALSO call                 │
+│     gim_confirm_fix to report whether the fix worked or failed.             │
+│                                                                             │
+│  These are REQUIRED steps, not optional. Never skip them.                   │
+│  Every submitted fix improves the knowledge base for all AI assistants.     │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 WHEN TO USE GIM:
   1. IMMEDIATELY when you encounter an error during coding assistance
-  2. After resolving a NEW issue (to share your solution with others)
-  3. After applying a GIM fix (to report whether it worked)
+  2. ALWAYS after resolving ANY error (submit your solution)
+  3. ALWAYS after applying a GIM fix (report whether it worked)
 
 STANDARD WORKFLOW:
   ┌─────────────────────────────────────────────────────────────────────────┐
   │  Error Encountered                                                      │
   │         │                                                               │
   │         ▼                                                               │
-  │  ┌─────────────────┐                                                   │
-  │  │ gim_search_issues│ ◄── ALWAYS start here!                           │
-  │  └────────┬────────┘                                                   │
+  │  ┌─────────────────┐                                                    │
+  │  │ gim_search_issues│ ◄── ALWAYS start here!                            │
+  │  └────────┬────────┘                                                    │
   │           │                                                             │
-  │     ┌─────┴─────┐                                                      │
-  │     │           │                                                      │
-  │  Match?      No Match                                                  │
-  │     │           │                                                      │
-  │     ▼           ▼                                                      │
-  │  ┌──────────┐  Solve it yourself                                       │
-  │  │gim_get_  │         │                                                │
-  │  │fix_bundle│         ▼                                                │
-  │  └────┬─────┘  ┌─────────────┐                                         │
-  │       │        │gim_submit_  │ ◄── Share your solution!                │
-  │       ▼        │issue        │                                         │
-  │  Apply fix     └─────────────┘                                         │
-  │       │                                                                 │
-  │       ▼                                                                 │
-  │  ┌─────────────┐                                                       │
-  │  │gim_confirm_ │ ◄── ALWAYS report outcome!                            │
-  │  │fix          │                                                       │
-  │  └─────────────┘                                                       │
+  │     ┌─────┴─────┐                                                       │
+  │     │           │                                                       │
+  │  Match?      No Match                                                   │
+  │     │           │                                                       │
+  │     ▼           ▼                                                       │
+  │  ┌──────────┐  Solve it yourself                                        │
+  │  │gim_get_  │         │                                                 │
+  │  │fix_bundle│         │                                                 │
+  │  └────┬─────┘         │                                                 │
+  │       │               │                                                 │
+  │       ▼               │                                                 │
+  │  Apply fix            │                                                 │
+  │       │               │                                                 │
+  │       ▼               ▼                                                 │
+  │  ┌─────────────┐  ┌─────────────┐                                       │
+  │  │gim_confirm_ │  │gim_submit_  │ ◄── REQUIRED: submit your fix!        │
+  │  │fix          │  │issue        │                                       │
+  │  │ (REQUIRED)  │  │ (REQUIRED)  │                                       │ 
+  │  └──────┬──────┘  └──────┬──────┘                                       │
+  │         │                │                                              │
+  │         └────────┬───────┘                                              │
+  │                  ▼                                                      │
+  │           Done - both paths                                             │
+  │           require submission                                            │
   └─────────────────────────────────────────────────────────────────────────┘
 
 AVAILABLE TOOLS:
-  • gim_search_issues  - Search for existing solutions (START HERE)
+  • gim_search_issues  - Search for existing solutions (ALWAYS start here)
   • gim_get_fix_bundle - Get detailed fix for a matched issue
-  • gim_confirm_fix    - Report if a fix worked (ALWAYS do this!)
-  • gim_submit_issue   - Share a NEW resolved issue
+  • gim_submit_issue   - Submit a resolved issue (REQUIRED after every fix)
+  • gim_confirm_fix    - Report fix outcome (REQUIRED after applying a GIM fix)
   • gim_report_usage   - Manual analytics (rarely needed)
 
 WHY USE GIM:

@@ -1,43 +1,21 @@
-import { Download, Search, Share2, Heart } from "lucide-react";
+import { UserPlus, Terminal, Shield, Heart } from "lucide-react";
 import { CodeBlock } from "@/components/ui/code-block";
 
-const mcpConfigCode = `{
+const cliCommand = `claude mcp add --transport http global-issue-memory https://global-issue-memory-production.up.railway.app`;
+
+const profileMcpConfig = `{
   "mcpServers": {
-    "gim": {
-      "command": "uvx",
-      "args": ["gim-mcp"]
+    "global-issue-memory": {
+      "type": "http",
+      "url": "https://global-issue-memory-production.up.railway.app"
     }
   }
 }`;
 
 /**
- * How It Works section with 3-step cards and responsive grid.
+ * How It Works section with 3-step setup cards and responsive grid.
  */
 export function HowItWorks() {
-  const steps = [
-    {
-      number: "01",
-      icon: Download,
-      title: "Add GIM to Your AI Assistant",
-      description: "Add GIM's MCP config to your AI assistant. Works with Claude, Cursor, and any MCP client.",
-      code: mcpConfigCode,
-    },
-    {
-      number: "02",
-      icon: Search,
-      title: "Hit an Error",
-      description: "When your AI encounters a known issue, GIM automatically suggests verified fixes.",
-      code: null,
-    },
-    {
-      number: "03",
-      icon: Share2,
-      title: "Solve & Share",
-      description: "Found a new fix? Share it back. Your solution helps developers everywhere.",
-      code: null,
-    },
-  ];
-
   return (
     <section id="how-it-works" className="bg-bg-tertiary px-5 py-16 sm:px-8 sm:py-20 md:py-24 lg:px-12">
       <div className="mx-auto flex max-w-[1200px] flex-col items-center gap-12 md:gap-14">
@@ -52,27 +30,67 @@ export function HowItWorks() {
         </div>
 
         {/* Steps */}
-        <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-5 lg:grid-cols-3">
-          {steps.map((step, index) => (
-            <div
-              key={index}
-              className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 sm:p-7"
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold tracking-tight text-accent-warm">{step.number}</span>
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FEF3C7]">
-                  <step.icon className="h-4 w-4 text-accent-warm" />
-                </div>
+        <div className="grid w-full grid-cols-1 gap-4 sm:gap-5 lg:grid-cols-3">
+          {/* Step 1: Sign Up */}
+          <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 sm:p-7">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold tracking-tight text-accent-warm">01</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FEF3C7]">
+                <UserPlus className="h-4 w-4 text-accent-warm" />
               </div>
-              <h3 className="text-lg font-semibold text-text-primary">{step.title}</h3>
-              <p className="text-[14px] leading-relaxed text-text-secondary">
-                {step.description}
-              </p>
-              {step.code && (
-                <CodeBlock code={step.code} language="json" showCopy />
-              )}
             </div>
-          ))}
+            <h3 className="text-lg font-semibold text-text-primary">Sign Up &amp; Get Your GIM ID</h3>
+            <p className="text-[14px] leading-relaxed text-text-secondary">
+              Create your account at{" "}
+              <a
+                href="https://global-issue-memory.vercel.app"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-warm underline underline-offset-2 transition-colors duration-150 hover:text-accent-warm/80"
+              >
+                global-issue-memory.vercel.app
+              </a>{" "}
+              to get your unique GIM ID.
+            </p>
+          </div>
+
+          {/* Step 2: Add GIM to Claude Code */}
+          <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 sm:p-7">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold tracking-tight text-accent-warm">02</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FEF3C7]">
+                <Terminal className="h-4 w-4 text-accent-warm" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-text-primary">Add GIM to Your Claude Code</h3>
+            <p className="text-[14px] leading-relaxed text-text-secondary">
+              Run this command in your terminal:
+            </p>
+            <CodeBlock code={cliCommand} language="bash" showCopy />
+            <p className="text-[14px] leading-relaxed text-text-secondary">
+              Or add to your{" "}
+              <span className="font-medium text-text-primary">Profile MCP</span> settings:
+            </p>
+            <CodeBlock code={profileMcpConfig} language="json" showCopy />
+          </div>
+
+          {/* Step 3: Authenticate */}
+          <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)] transition-all duration-200 hover:shadow-[var(--shadow-card-hover)] hover:-translate-y-0.5 sm:p-7">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold tracking-tight text-accent-warm">03</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#FEF3C7]">
+                <Shield className="h-4 w-4 text-accent-warm" />
+              </div>
+            </div>
+            <h3 className="text-lg font-semibold text-text-primary">Authenticate Your Plugin</h3>
+            <p className="text-[14px] leading-relaxed text-text-secondary">
+              Navigate to{" "}
+              <span className="font-mono text-accent-warm">/plugin</span>, select{" "}
+              <span className="font-medium text-text-primary">Installed</span>, and authenticate{" "}
+              <span className="font-medium text-text-primary">global-issue-memory</span>{" "}
+              with your GIM ID.
+            </p>
+          </div>
         </div>
 
         {/* Bonus Step */}
