@@ -5,7 +5,6 @@ export * from "./issue-card";
 export * from "./issue-card-list";
 export * from "./issues-skeleton";
 export * from "./confidence-meter";
-export * from "./fix-preview-inline";
 export * from "./category-filter-bar";
 export * from "./issues-over-time-chart";
 export * from "./provider-list";

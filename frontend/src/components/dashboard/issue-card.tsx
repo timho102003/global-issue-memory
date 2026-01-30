@@ -5,7 +5,6 @@ import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { ConfidenceMeter } from "./confidence-meter";
-import { FixPreviewInline } from "./fix-preview-inline";
 import { formatRelativeTime } from "@/lib/utils";
 import type { MasterIssue, RootCauseCategory } from "@/types";
 import { CATEGORY_DISPLAY, STATUS_DISPLAY } from "@/types";
@@ -65,9 +64,6 @@ export function IssueCard({ issue, className }: IssueCardProps) {
       <h3 className="line-clamp-2 text-sm font-semibold leading-snug text-text-primary group-hover:text-primary transition-colors duration-200">
         {issue.canonical_title || "Untitled Issue"}
       </h3>
-
-      {/* Fix preview */}
-      <FixPreviewInline fixPreview={issue.fix_preview} />
 
       {/* Footer: metadata */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
