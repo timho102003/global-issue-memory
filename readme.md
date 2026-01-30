@@ -187,42 +187,36 @@ python main.py
 
 ## Documentation
 
-- [Product Requirements Document](docs/PRD_Global_Issue_Memory.md) - Full specification
 - [Architecture Guide](docs/ARCHITECTURE.md) - System design and components
 - [Setup & Configuration](docs/SETUP.md) - Installation and environment setup
 - [API Reference](docs/API.md) - MCP tools and data models
-- [Development Roadmap](docs/ROADMAP.md) - Implementation progress and milestones
+- [Deployment Guide](docs/DEPLOYMENT.md) - Railway + Vercel deployment
 - [Contributing](docs/CONTRIBUTING.md) - Development guidelines
 
 ## Project Status
 
-**Current Phase:** Phase 2 In Progress - Infrastructure Improvements Complete
+**Status:** Active Development
 
-### Phase 1: Foundation (Weeks 1-4) - COMPLETED
-- ✅ Pydantic data models (MasterIssue, ChildIssue, FixBundle, Analytics, Environment)
-- ✅ Two-layer sanitization pipeline (secrets, PII, MRE synthesis, LLM sanitizer)
-- ✅ Database clients (Supabase, Qdrant)
-- ✅ Embedding service (Google Gemini text-embedding-004)
-- ✅ MCP server with 5 tools defined
-- ✅ Comprehensive test suite (~75% coverage)
+### Completed
+- Pydantic data models (MasterIssue, ChildIssue, FixBundle, Analytics, Environment)
+- Two-layer sanitization pipeline (secrets, PII, MRE synthesis, LLM sanitizer)
+- Database clients (Supabase, Qdrant)
+- Embedding service (Google Gemini)
+- MCP server with 5 tools
+- OAuth 2.1 with PKCE authentication
+- Infrastructure improvements (custom exceptions, centralized logging, thread-safe clients)
+- Enhanced metadata services (contribution classifier, environment extractor, model parser)
+- Security hardening (generic error messages, structured error handling)
+- Vector storage optimization (single combined vector with INT8 scalar quantization)
+- Frontend dashboard (Next.js 15)
+- CI/CD pipelines (GitHub Actions)
+- Docker deployment support
 
-### Phase 2: Database & Search (Weeks 5-8) - IN PROGRESS
-- ✅ **Infrastructure improvements** (custom exceptions, centralized logging, thread-safe clients)
-- ✅ **Enhanced metadata services** (contribution classifier, environment extractor, model parser)
-- ✅ **Security hardening** (generic error messages, structured error handling)
-- ✅ **Vector storage optimization** (single combined vector with INT8 scalar quantization, 2026-01-29)
-- ✅ **Migration tooling** (`scripts/migrate_vectors.py` for collection rebuild, 2026-01-29)
-- ✅ **Configuration improvements** (JWT TTL increased to 24 hours, 2026-01-29)
-- ⏳ Database schema & migrations (Supabase)
-- ⏳ Canonicalization engine (root cause classification, clustering)
-- ⏳ Search implementation with combined vector ranking
-- ⏳ Complete tool integrations with database
-
-### Upcoming
-- Phase 3: Search & Ranking (Weeks 9-10)
-- Phase 4: Dashboard & Polish (Weeks 11-12)
-
-See [Development Roadmap](docs/ROADMAP.md) for detailed progress tracking.
+### In Progress
+- Database schema migrations
+- Canonicalization engine (root cause classification, clustering)
+- Search ranking algorithm
+- Full tool-to-database integration
 
 ## MCP Tools
 
@@ -318,16 +312,9 @@ When you use GIM, you're not just helping yourself — you're contributing to a 
 - Share what you build
 - **Every contribution counts**
 
-## Links
-
-- [Product Requirements Document](docs/PRD_Global_Issue_Memory.md)
-- [Development Roadmap](docs/ROADMAP.md)
-- [Issue Tracker](#) (coming soon)
-- [Dashboard](#) (coming soon)
-
 ## License
 
-[Add license here]
+This project is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). You may use, modify, and distribute this software for any **noncommercial purpose**. Commercial use is not permitted under this license.
 
 ---
 

@@ -15,7 +15,7 @@ This guide walks you through setting up a local development environment for Glob
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/your-org/gim.git
+git clone https://github.com/timho102003/gim.git
 cd gim
 ```
 
@@ -636,26 +636,9 @@ pip show gim
 
 - Read the [Architecture Guide](ARCHITECTURE.md) to understand system design
 - Read the [API Reference](API.md) to learn about MCP tools
-- Read the [PRD](PRD_Global_Issue_Memory.md) for full product specification
 - Check the [Contributing Guide](CONTRIBUTING.md) for development guidelines
 
 ## Getting Help
 
-- Check existing [GitHub Issues](https://github.com/your-org/gim/issues)
-- Read the [FAQ](FAQ.md) (coming soon)
-- Join the [Discord community](https://discord.gg/gim) (coming soon)
-
-## Docker Setup (Alternative)
-
-**Coming Soon:** Docker Compose setup for one-command local environment.
-
-```bash
-# Planned for Phase 2
-docker-compose up
-```
-
-This will spin up:
-- GIM MCP server
-- Qdrant
-- PostgreSQL (local alternative to Supabase)
-- Dashboard UI (when implemented)
+- Check existing [GitHub Issues](https://github.com/timho102003/gim/issues)
+- Open a new issue with the `question` label

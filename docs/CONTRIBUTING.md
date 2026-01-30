@@ -18,7 +18,7 @@ GIM follows Test-Driven Development (TDD) and emphasizes:
 ```bash
 git clone https://github.com/your-username/gim.git
 cd gim
-git remote add upstream https://github.com/original-org/gim.git
+git remote add upstream https://github.com/timho102003/gim.git
 ```
 
 ### 2. Set Up Development Environment
@@ -513,7 +513,6 @@ await db.table("issues").insert(issue.model_dump())
 
 - **Documentation:** Check [docs/](../docs/) first
 - **GitHub Issues:** Search existing issues or create a new one
-- **Discord:** Join our community (link coming soon)
 - **Code Examples:** Look at existing tests for patterns
 
 ## Recognition
@@ -526,7 +525,7 @@ Contributors are recognized in:
 
 ## License
 
-By contributing, you agree that your contributions will be licensed under the same license as the project.
+By contributing, you agree that your contributions will be licensed under the [PolyForm Noncommercial License 1.0.0](../LICENSE).
 
 ## Questions?
 
@@ -535,6 +534,5 @@ If you have questions about contributing:
 1. Check existing documentation
 2. Search GitHub issues
 3. Open a new issue with the `question` label
-4. Join our Discord community
 
 Thank you for contributing to GIM!

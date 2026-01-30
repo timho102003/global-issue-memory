@@ -677,46 +677,37 @@ All tools return errors in a consistent format:
 
 ## Rate Limits
 
-**Current:** No rate limits enforced (MVP)
+Rate limits are enforced per GIM ID:
 
-**Planned:**
-- 100 searches per session per hour
-- 10 submissions per session per day
-- 1000 confirmations per session per day
+| Operation | Daily Limit |
+|-----------|-------------|
+| `gim_search_issues` | 100/day |
+| `gim_get_fix_bundle` | 100/day |
+| `gim_submit_issue` | Unlimited |
+| `gim_confirm_fix` | Unlimited |
+| `gim_report_usage` | Unlimited |
+
+Configurable via `DEFAULT_DAILY_SEARCH_LIMIT` environment variable.
 
 ---
 
 ## Pagination
 
-For endpoints returning multiple results:
+Issue search supports offset-based pagination:
 
 ```json
 {
   "issues": [...],
   "total_results": 150,
-  "page": 1,
-  "page_size": 10,
-  "next_page": "cursor_token_here"
+  "limit": 50,
+  "offset": 0
 }
 ```
-
-**Note:** Pagination not yet implemented for MVP.
-
----
-
-## Versioning
-
-**Current API Version:** v1 (implicit)
-
-Future versions will use explicit versioning in tool names:
-- `gim_v2_search_issues`
-- Or version in request: `{"api_version": "v2"}`
 
 ---
 
 ## References
 
-- [Product Requirements Document](PRD_Global_Issue_Memory.md)
 - [Architecture Guide](ARCHITECTURE.md)
 - [Setup Guide](SETUP.md)
 - [MCP Protocol Specification](https://spec.modelcontextprotocol.io/)

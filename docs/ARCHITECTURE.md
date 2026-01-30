@@ -403,7 +403,7 @@ CREATE TABLE issue_usage_stats (
 );
 ```
 
-**Status:** Schema not yet created (pending Phase 1 completion)
+**Status:** Schema defined, migrations available in `gim/migrations/`
 
 #### Qdrant (Vector DB) (`src/db/qdrant_client.py`)
 
@@ -510,7 +510,7 @@ class MCPTool:
 
 ### 7. Canonicalization Engine (`src/services/canonicalization/`)
 
-**Status:** Stub implementation (planned for Phase 2)
+**Status:** Stub implementation (in progress)
 
 **Planned Features:**
 
@@ -712,10 +712,9 @@ Response
 
 ### 3. Rate Limiting
 
-**Planned:**
-- Per-session rate limits (prevent spam)
-- Anomaly detection for bulk submissions
-- Quality scoring to detect low-effort submissions
+- Per-GIM-ID daily rate limits (100/day for search operations)
+- Anomaly detection for bulk submissions (planned)
+- Quality scoring to detect low-effort submissions (planned)
 
 ### 4. Access Control
 
@@ -862,49 +861,30 @@ CREATE TABLE oauth_refresh_tokens (
 
 ### Integration Tests
 
-**Planned:**
 - Full pipeline tests (submission → sanitization → storage)
 - Search flow tests (query → embedding → results)
 - Analytics flow tests (event → aggregation → stats)
 
 ### End-to-End Tests
 
-**Planned:**
 - MCP tool integration tests
 - Dashboard integration tests
 - Real API tests (with test credentials)
 
 ## Monitoring & Observability
 
-**Planned:**
-- Structured logging (JSON logs)
-- Error tracking (Sentry or similar)
-- Performance metrics (latency, throughput)
+- Structured logging with request context tracking and operation timing
+- Centralized log format: `timestamp | level | logger | [request_id] | message`
+- Error tracking (planned: Sentry or similar)
+- Performance metrics via `@log_operation` decorator
 - Usage analytics dashboard
-- Sanitization rejection tracking
 
 ## Future Enhancements
 
-### Phase 2 (Weeks 5-8)
-
-- Complete canonicalization engine
-- Root cause taxonomy v1
-- Similarity detection with auto-merge
-
-### Phase 3 (Weeks 9-10)
-
-- Full search implementation with multi-vector ranking
+- Complete canonicalization engine with root cause taxonomy
+- Full search implementation with ranking algorithm
 - Confidence scoring algorithm
 - Stale issue detection
-
-### Phase 4 (Weeks 11-12)
-
-- Read-only dashboard UI
-- Usage analytics visualization
-- Trust signal display
-
-### Post-MVP
-
 - Private workspaces for teams
 - Sandbox execution for verification
 - IDE plugins (Cursor, VS Code)
@@ -912,6 +892,6 @@ CREATE TABLE oauth_refresh_tokens (
 
 ## References
 
-- [Product Requirements Document](PRD_Global_Issue_Memory.md)
 - [API Reference](API.md)
 - [Setup Guide](SETUP.md)
+- [Deployment Guide](DEPLOYMENT.md)
