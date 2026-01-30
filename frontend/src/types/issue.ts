@@ -13,6 +13,12 @@ export type RootCauseCategory =
   | "code_generation"
   | "framework_specific";
 
+export interface FixPreview {
+  has_fix: boolean;
+  summary?: string;
+  first_step?: string;
+}
+
 export interface MasterIssue {
   id: string;
   canonical_title: string;
@@ -30,6 +36,7 @@ export interface MasterIssue {
   model_provider?: string;
   language?: string;
   framework?: string;
+  fix_preview?: FixPreview;
 }
 
 export interface MasterIssueCreate {
