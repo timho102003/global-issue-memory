@@ -1,0 +1,37 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['gim/**']
+  pull_request:
+    branches: [main]
+    paths: ['gim/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: gim
+    env:
+      SUPABASE_URL: https://placeholder.supabase.co
+      SUPABASE_KEY: placeholder-key
+      QDRANT_URL: https://placeholder.qdrant.io
+      QDRANT_API_KEY: placeholder-key
+      GOOGLE_API_KEY: placeholder-key
+      JWT_SECRET_KEY: placeholder-secret-key-minimum-32-chars!!
+      TRANSPORT_MODE: stdio
+      HTTP_PORT: "8000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: uv sync --dev
+      - name: Run tests
+        run: uv run pytest -v --tb=short
