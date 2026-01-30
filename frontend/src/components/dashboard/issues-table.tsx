@@ -10,7 +10,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { formatDate, formatPercentage } from "@/lib/utils";
 import type { MasterIssue, RootCauseCategory } from "@/types";
 import { CATEGORY_DISPLAY, STATUS_DISPLAY } from "@/types";
@@ -29,99 +28,123 @@ const DEFAULT_CATEGORY_INFO = { label: "Other", color: "cat-environment" };
 
 interface IssuesTableProps {
   issues: MasterIssue[];
-  selectedIds?: string[];
-  onSelectionChange?: (ids: string[]) => void;
 }
 
 /**
  * Issues table component matching GIM.pen Issue Explorer design.
+ * Renders a table on md+ screens, card list on mobile.
  */
-export function IssuesTable({
-  issues,
-  selectedIds = [],
-  onSelectionChange,
-}: IssuesTableProps) {
-  const toggleSelection = (id: string) => {
-    if (!onSelectionChange) return;
-    if (selectedIds.includes(id)) {
-      onSelectionChange(selectedIds.filter((i) => i !== id));
-    } else {
-      onSelectionChange([...selectedIds, id]);
-    }
-  };
+export function IssuesTable({ issues }: IssuesTableProps) {
+  return (
+    <>
+      {/* Desktop: table layout */}
+      <div className="hidden md:block">
+        <Table>
+          <TableHeader>
+            <TableRow className="border-border-soft hover:bg-transparent">
+              <TableHead>Issue</TableHead>
+              <TableHead>Category</TableHead>
+              <TableHead>Provider</TableHead>
+              <TableHead>Confidence</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead>Status</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {issues.map((issue) => (
+              <IssueRow key={issue.id} issue={issue} />
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
-  const toggleAll = () => {
-    if (!onSelectionChange) return;
-    if (selectedIds.length === issues.length) {
-      onSelectionChange([]);
-    } else {
-      onSelectionChange(issues.map((i) => i.id));
-    }
-  };
+      {/* Mobile: card layout */}
+      <div className="divide-y divide-border-soft md:hidden">
+        {issues.map((issue) => (
+          <IssueCard key={issue.id} issue={issue} />
+        ))}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Single issue row for the desktop table view.
+ */
+function IssueRow({ issue }: { issue: MasterIssue }) {
+  const categoryInfo =
+    CATEGORY_DISPLAY[issue.root_cause_category as RootCauseCategory] || DEFAULT_CATEGORY_INFO;
+  const statusInfo =
+    STATUS_DISPLAY[issue.status] || { label: "Unknown", variant: "warning" as const };
+  const badgeCategory =
+    categoryToBadge[issue.root_cause_category as RootCauseCategory] || "environment";
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="border-border-soft hover:bg-transparent">
-          <TableHead className="w-12">
-            <Checkbox
-              checked={selectedIds.length === issues.length && issues.length > 0}
-              onChange={toggleAll}
-            />
-          </TableHead>
-          <TableHead>Issue</TableHead>
-          <TableHead>Category</TableHead>
-          <TableHead>Provider</TableHead>
-          <TableHead>Confidence</TableHead>
-          <TableHead>Updated</TableHead>
-          <TableHead>Status</TableHead>
-        </TableRow>
-      </TableHeader>
-      <TableBody>
-        {issues.map((issue) => {
-          const categoryInfo = CATEGORY_DISPLAY[issue.root_cause_category as RootCauseCategory] || DEFAULT_CATEGORY_INFO;
-          const statusInfo = STATUS_DISPLAY[issue.status] || { label: "Unknown", variant: "warning" as const };
-          const badgeCategory = categoryToBadge[issue.root_cause_category as RootCauseCategory] || "environment";
+    <TableRow>
+      <TableCell>
+        <Link
+          href={`/dashboard/issues/${issue.id}`}
+          className="font-medium text-text-primary transition-colors duration-200 hover:text-primary"
+        >
+          {issue.canonical_title || "Untitled Issue"}
+        </Link>
+      </TableCell>
+      <TableCell>
+        <Badge category={badgeCategory}>{categoryInfo.label}</Badge>
+      </TableCell>
+      <TableCell className="text-text-secondary">
+        {issue.model_provider && issue.model_provider !== "unknown"
+          ? issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)
+          : "-"}
+      </TableCell>
+      <TableCell className="text-text-secondary">
+        {formatPercentage(issue.confidence_score)}
+      </TableCell>
+      <TableCell className="text-text-muted">{formatDate(issue.updated_at)}</TableCell>
+      <TableCell>
+        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+      </TableCell>
+    </TableRow>
+  );
+}
 
-          return (
-            <TableRow key={issue.id}>
-              <TableCell>
-                <Checkbox
-                  checked={selectedIds.includes(issue.id)}
-                  onChange={() => toggleSelection(issue.id)}
-                />
-              </TableCell>
-              <TableCell>
-                <Link
-                  href={`/dashboard/issues/${issue.id}`}
-                  className="font-medium text-text-primary hover:text-primary"
-                >
-                  {issue.canonical_title || "Untitled Issue"}
-                </Link>
-              </TableCell>
-              <TableCell>
-                <Badge category={badgeCategory}>
-                  {categoryInfo.label}
-                </Badge>
-              </TableCell>
-              <TableCell className="text-text-secondary">
-                {issue.model_provider && issue.model_provider !== "unknown"
-                  ? issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)
-                  : "-"}
-              </TableCell>
-              <TableCell className="text-text-secondary">
-                {formatPercentage(issue.confidence_score)}
-              </TableCell>
-              <TableCell className="text-text-muted">
-                {formatDate(issue.updated_at)}
-              </TableCell>
-              <TableCell>
-                <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-              </TableCell>
-            </TableRow>
-          );
-        })}
-      </TableBody>
-    </Table>
+/**
+ * Single issue card for the mobile view.
+ */
+function IssueCard({ issue }: { issue: MasterIssue }) {
+  const categoryInfo =
+    CATEGORY_DISPLAY[issue.root_cause_category as RootCauseCategory] || DEFAULT_CATEGORY_INFO;
+  const statusInfo =
+    STATUS_DISPLAY[issue.status] || { label: "Unknown", variant: "warning" as const };
+  const badgeCategory =
+    categoryToBadge[issue.root_cause_category as RootCauseCategory] || "environment";
+
+  return (
+    <Link
+      href={`/dashboard/issues/${issue.id}`}
+      className="block px-4 py-4 transition-colors duration-200 active:bg-bg-muted/40 sm:px-5"
+    >
+      {/* Title */}
+      <p className="text-sm font-medium leading-snug text-text-primary">
+        {issue.canonical_title || "Untitled Issue"}
+      </p>
+
+      {/* Badges row */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <Badge category={badgeCategory}>{categoryInfo.label}</Badge>
+        <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
+      </div>
+
+      {/* Metadata row */}
+      <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-text-muted">
+        {issue.model_provider && issue.model_provider !== "unknown" && (
+          <span>
+            {issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)}
+          </span>
+        )}
+        <span>{formatPercentage(issue.confidence_score)} confidence</span>
+        <span>{formatDate(issue.updated_at)}</span>
+      </div>
+    </Link>
   );
 }

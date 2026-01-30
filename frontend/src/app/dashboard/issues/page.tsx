@@ -5,7 +5,6 @@ import { Select } from "@/components/ui/select";
 import { SearchBox } from "@/components/ui/search-box";
 import { IssuesTable } from "@/components/dashboard/issues-table";
 import { useIssueSearch } from "@/lib/hooks/use-issues";
-import type { MasterIssue, IssueStatus, RootCauseCategory } from "@/types";
 
 /**
  * Issue Explorer page matching GIM.pen design (yHuOd).
@@ -16,14 +15,13 @@ export default function IssuesPage() {
   const [status, setStatus] = useState<string>("all");
   const [provider, setProvider] = useState<string>("all");
   const [timeRange, setTimeRange] = useState<string>("all");
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   const { data, isLoading } = useIssueSearch({
     query: search || undefined,
     category: category !== "all" ? category : undefined,
     status: status !== "all" ? status : undefined,
     provider: provider !== "all" ? provider : undefined,
-    time_range: timeRange !== "all" ? (timeRange as "7d" | "30d" | "90d") : undefined,
+    time_range: timeRange !== "all" ? (timeRange as "1d" | "7d" | "30d" | "90d") : undefined,
     limit: 20,
   });
 
@@ -80,6 +78,7 @@ export default function IssuesPage() {
               className="w-full sm:w-[140px]"
             >
               <option value="all">All Time</option>
+              <option value="1d">Last 24 Hours</option>
               <option value="7d">Past 7 Days</option>
               <option value="30d">Past 30 Days</option>
               <option value="90d">Past 90 Days</option>
@@ -93,27 +92,19 @@ export default function IssuesPage() {
           />
         </div>
 
-        {/* Table Header */}
+        {/* Issue count */}
         <div className="flex items-center justify-between border-b border-border-soft px-5 py-3 sm:px-6 sm:py-3.5">
           <span className="text-[13px] text-text-muted">
-            {isLoading
-              ? "Loading..."
-              : selectedIds.length > 0
-                ? `${selectedIds.length} selected`
-                : `${issues.length} issues`}
+            {isLoading ? "Loading..." : `${issues.length} issues`}
           </span>
         </div>
 
-        {/* Table Body */}
+        {/* Table / Card list */}
         <div className="flex-1 overflow-auto">
           {isLoading ? (
             <IssuesTableSkeleton />
           ) : (
-            <IssuesTable
-              issues={issues}
-              selectedIds={selectedIds}
-              onSelectionChange={setSelectedIds}
-            />
+            <IssuesTable issues={issues} />
           )}
         </div>
       </div>
@@ -122,28 +113,44 @@ export default function IssuesPage() {
 }
 
 /**
- * Skeleton loading state for the issues table.
+ * Skeleton loading state — desktop shows table rows, mobile shows cards.
  */
 function IssuesTableSkeleton() {
   return (
-    <div className="divide-y divide-border-soft">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-5 py-4 sm:px-6">
-          {/* Checkbox placeholder */}
-          <div className="h-4 w-4 animate-pulse rounded bg-bg-tertiary" />
-          {/* Title + description */}
-          <div className="flex min-w-0 flex-1 flex-col gap-2">
-            <div className="h-4 w-3/4 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-3 w-1/2 animate-pulse rounded bg-bg-tertiary" />
+    <>
+      {/* Desktop skeleton */}
+      <div className="hidden divide-y divide-border-soft md:block">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-6 py-4">
+            <div className="flex min-w-0 flex-1 flex-col gap-2">
+              <div className="h-4 w-3/4 animate-pulse rounded bg-bg-tertiary" />
+            </div>
+            <div className="h-6 w-20 animate-pulse rounded-full bg-bg-tertiary" />
+            <div className="h-4 w-16 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-4 w-12 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-4 w-20 animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-6 w-16 animate-pulse rounded-full bg-bg-tertiary" />
           </div>
-          {/* Category badge */}
-          <div className="hidden h-6 w-20 animate-pulse rounded-full bg-bg-tertiary sm:block" />
-          {/* Confidence */}
-          <div className="hidden h-4 w-12 animate-pulse rounded bg-bg-tertiary md:block" />
-          {/* Count */}
-          <div className="hidden h-4 w-8 animate-pulse rounded bg-bg-tertiary lg:block" />
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+
+      {/* Mobile skeleton */}
+      <div className="divide-y divide-border-soft md:hidden">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <div key={i} className="flex flex-col gap-2.5 px-4 py-4 sm:px-5">
+            <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
+            <div className="flex gap-2">
+              <div className="h-5 w-16 animate-pulse rounded-full bg-bg-tertiary" />
+              <div className="h-5 w-14 animate-pulse rounded-full bg-bg-tertiary" />
+            </div>
+            <div className="flex gap-4">
+              <div className="h-3 w-16 animate-pulse rounded bg-bg-tertiary" />
+              <div className="h-3 w-20 animate-pulse rounded bg-bg-tertiary" />
+              <div className="h-3 w-16 animate-pulse rounded bg-bg-tertiary" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
