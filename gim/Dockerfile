@@ -11,8 +11,10 @@ RUN uv sync --frozen --no-dev
 
 COPY . .
 
-RUN chown -R appuser:appgroup /app
+RUN mkdir -p /app/.uv-cache && chown -R appuser:appgroup /app
 
 USER appuser
+
+ENV UV_CACHE_DIR=/app/.uv-cache
 
 CMD ["sh", "-c", "HTTP_PORT=${PORT:-8000} uv run python main.py --transport http"]
