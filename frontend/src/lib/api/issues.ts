@@ -1,5 +1,11 @@
 import { api } from "./client";
-import type { MasterIssue, ChildIssueCreate, ChildIssue } from "@/types";
+import type {
+  MasterIssue,
+  ChildIssueCreate,
+  ChildIssue,
+  ChildIssueDetail,
+  ChildIssueListResponse,
+} from "@/types";
 import type { FixBundle } from "@/types";
 
 /**
@@ -10,7 +16,7 @@ export interface IssueSearchParams {
   category?: string;
   status?: string;
   provider?: string;
-  time_range?: "7d" | "30d" | "90d";
+  time_range?: "1d" | "7d" | "30d" | "90d";
   limit?: number;
   offset?: number;
 }
@@ -98,6 +104,31 @@ export async function confirmFix(
       notes,
     },
   });
+}
+
+/**
+ * Get child issues for a master issue.
+ *
+ * @param masterIssueId - Master issue UUID
+ * @returns Child issues list with pagination
+ */
+export async function getChildIssues(
+  masterIssueId: string
+): Promise<ChildIssueListResponse> {
+  return api.get<ChildIssueListResponse>(`/issues/${masterIssueId}/children`);
+}
+
+/**
+ * Get a child issue by ID.
+ * The backend resolves child IDs to their detail format automatically.
+ *
+ * @param childId - Child issue UUID
+ * @returns Child issue detail with parent context
+ */
+export async function getChildIssue(
+  childId: string
+): Promise<ChildIssueDetail> {
+  return api.get<ChildIssueDetail>(`/issues/${childId}`);
 }
 
 /**

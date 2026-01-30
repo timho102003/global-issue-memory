@@ -4,7 +4,6 @@ import { use } from "react";
 
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CodeBlock } from "@/components/ui/code-block";
 import {
   Breadcrumb,
   BreadcrumbList,
@@ -13,6 +12,7 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { ChildIssuesList } from "@/components/issue/child-issues-list";
 import { FixBundleCard } from "@/components/issue/fix-bundle-card";
 import { TrustSignals } from "@/components/issue/trust-signals";
 import { useIssue, useFixBundle } from "@/lib/hooks/use-issues";
@@ -115,33 +115,17 @@ export default function IssueDetailPage({
             </Card>
           )}
 
-          {/* Code Block */}
-          {fixBundleLoading ? (
-            <Card>
-              <CardHeader>
-                <div className="h-5 w-24 animate-pulse rounded bg-bg-tertiary" />
-              </CardHeader>
-              <CardContent>
-                <div className="h-40 w-full animate-pulse rounded-xl bg-bg-tertiary" />
-              </CardContent>
-            </Card>
-          ) : fixBundle?.code_fix ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Code Fix</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <CodeBlock code={fixBundle.code_fix} language="python" />
-              </CardContent>
-            </Card>
-          ) : null}
-
           {/* Trust Signals */}
           <TrustSignals
             verificationCount={issue.verification_count}
             successRate={issue.confidence_score}
             lastConfirmedAt={issue.last_confirmed_at}
           />
+
+          {/* Child Issues (Contributions) */}
+          {issue.child_issue_count > 0 && (
+            <ChildIssuesList masterIssueId={id} />
+          )}
         </div>
 
         {/* Right Column - Fix Bundle */}

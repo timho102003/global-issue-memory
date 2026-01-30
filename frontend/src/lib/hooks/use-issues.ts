@@ -5,6 +5,8 @@ import {
   searchIssues,
   getIssue,
   getFixBundle,
+  getChildIssues,
+  getChildIssue,
   submitIssue,
   confirmFix,
   getDashboardStats,
@@ -52,6 +54,34 @@ export function useFixBundle(issueId: string | undefined) {
     queryKey: ["fixBundles", issueId],
     queryFn: () => getFixBundle(issueId!),
     enabled: !!issueId,
+  });
+}
+
+/**
+ * Hook for getting child issues of a master issue.
+ *
+ * @param masterIssueId - Master issue UUID
+ * @returns Query result
+ */
+export function useChildIssues(masterIssueId: string | undefined) {
+  return useQuery({
+    queryKey: ["issues", masterIssueId, "children"],
+    queryFn: () => getChildIssues(masterIssueId!),
+    enabled: !!masterIssueId,
+  });
+}
+
+/**
+ * Hook for getting a single child issue.
+ *
+ * @param childId - Child issue UUID
+ * @returns Query result
+ */
+export function useChildIssue(childId: string | undefined) {
+  return useQuery({
+    queryKey: ["childIssues", childId],
+    queryFn: () => getChildIssue(childId!),
+    enabled: !!childId,
   });
 }
 

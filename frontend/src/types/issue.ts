@@ -60,6 +60,55 @@ export interface ChildIssue extends ChildIssueCreate {
 }
 
 /**
+ * Child issue detail returned by GET /issues/{childId} when the ID is a child.
+ */
+export interface ChildIssueDetail {
+  id: string;
+  is_child_issue: true;
+  master_issue_id: string;
+  original_error: string;
+  original_context: string;
+  code_snippet: string;
+  model: string;
+  provider: string;
+  language: string;
+  framework: string;
+  submitted_at: string;
+  contribution_type: string;
+  validation_success: boolean | null;
+  metadata: Record<string, unknown>;
+  parent_canonical_title?: string;
+  parent_root_cause_category?: RootCauseCategory;
+}
+
+/**
+ * Child issue list item returned by GET /issues/{id}/children.
+ */
+export interface ChildIssueListItem {
+  id: string;
+  master_issue_id: string;
+  original_error: string;
+  provider: string;
+  language: string;
+  framework: string;
+  submitted_at: string;
+  contribution_type: string;
+  model_name: string;
+  validation_success: boolean | null;
+}
+
+/**
+ * Response from GET /issues/{id}/children.
+ */
+export interface ChildIssueListResponse {
+  children: ChildIssueListItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  master_issue_id: string;
+}
+
+/**
  * Category display configuration
  */
 export const CATEGORY_DISPLAY: Record<RootCauseCategory, { label: string; color: string }> = {
