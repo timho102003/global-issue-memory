@@ -8,6 +8,8 @@ Use a virtual environment with `pip install -e ".[dev]"` first.
 """
 
 import json
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from uuid import uuid4
@@ -635,3 +637,657 @@ class TestCORSMiddleware:
                 assert response.status_code == 200
                 # CORS middleware should add the header
                 assert "access-control-allow-origin" in response.headers
+
+
+class TestTimeRangeToIso:
+    """Tests for _time_range_to_iso helper function."""
+
+    @staticmethod
+    def _import_helper():
+        """Import _time_range_to_iso from server module.
+
+        Returns:
+            The _time_range_to_iso function.
+
+        Raises:
+            pytest.skip: If required dependencies are not installed.
+        """
+        try:
+            from src.server import _time_range_to_iso
+            return _time_range_to_iso
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+    def test_valid_1d_range(self) -> None:
+        """Test that '1d' returns a cutoff ~1 day ago."""
+        _time_range_to_iso = self._import_helper()
+
+        result = _time_range_to_iso("1d")
+        assert result is not None
+        cutoff = datetime.fromisoformat(result)
+        expected = datetime.now(timezone.utc) - timedelta(days=1)
+        # Allow 5 seconds of tolerance for test execution time
+        assert abs((cutoff - expected).total_seconds()) < 5
+
+    def test_valid_7d_range(self) -> None:
+        """Test that '7d' returns a cutoff ~7 days ago."""
+        _time_range_to_iso = self._import_helper()
+
+        result = _time_range_to_iso("7d")
+        assert result is not None
+        cutoff = datetime.fromisoformat(result)
+        expected = datetime.now(timezone.utc) - timedelta(days=7)
+        assert abs((cutoff - expected).total_seconds()) < 5
+
+    def test_valid_30d_range(self) -> None:
+        """Test that '30d' returns a cutoff ~30 days ago."""
+        _time_range_to_iso = self._import_helper()
+
+        result = _time_range_to_iso("30d")
+        assert result is not None
+        cutoff = datetime.fromisoformat(result)
+        expected = datetime.now(timezone.utc) - timedelta(days=30)
+        assert abs((cutoff - expected).total_seconds()) < 5
+
+    def test_valid_90d_range(self) -> None:
+        """Test that '90d' returns a cutoff ~90 days ago."""
+        _time_range_to_iso = self._import_helper()
+
+        result = _time_range_to_iso("90d")
+        assert result is not None
+        cutoff = datetime.fromisoformat(result)
+        expected = datetime.now(timezone.utc) - timedelta(days=90)
+        assert abs((cutoff - expected).total_seconds()) < 5
+
+    def test_invalid_range_returns_none(self) -> None:
+        """Test that an unrecognized range string returns None."""
+        _time_range_to_iso = self._import_helper()
+
+        assert _time_range_to_iso("2d") is None
+        assert _time_range_to_iso("") is None
+        assert _time_range_to_iso("all") is None
+        assert _time_range_to_iso("1w") is None
+
+    def test_returns_iso_format_string(self) -> None:
+        """Test that the result is a valid ISO format string."""
+        _time_range_to_iso = self._import_helper()
+
+        result = _time_range_to_iso("7d")
+        assert result is not None
+        # Should be parseable as ISO datetime
+        parsed = datetime.fromisoformat(result)
+        assert parsed.tzinfo is not None  # Should be timezone-aware
+
+
+class TestSearchIssuesProviderFilter:
+    """Tests for provider filter in the no-query search path."""
+
+    @pytest.mark.asyncio
+    async def test_provider_filter_passed_to_query(self) -> None:
+        """Test that provider argument is mapped to model_provider filter."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {"provider": "anthropic"}},
+                )
+
+                assert response.status_code == 200
+                # Verify that model_provider was passed in filters
+                filters = captured_kwargs.get("filters")
+                assert filters is not None
+                assert filters.get("model_provider") == "anthropic"
+
+    @pytest.mark.asyncio
+    async def test_no_provider_filter_when_not_specified(self) -> None:
+        """Test that no model_provider filter is applied when provider is absent."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {}},
+                )
+
+                assert response.status_code == 200
+                filters = captured_kwargs.get("filters")
+                # When no filters, filters should be None
+                assert filters is None or "model_provider" not in filters
+
+
+class TestSearchIssuesTimeRangeFilter:
+    """Tests for time_range filter in the no-query search path."""
+
+    @pytest.mark.asyncio
+    async def test_time_range_passed_as_gte_filter(self) -> None:
+        """Test that time_range argument is converted to gte_filters."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {"time_range": "7d"}},
+                )
+
+                assert response.status_code == 200
+                gte_filters = captured_kwargs.get("gte_filters")
+                assert gte_filters is not None
+                assert "created_at" in gte_filters
+                # Verify the cutoff is approximately 7 days ago
+                cutoff = datetime.fromisoformat(gte_filters["created_at"])
+                expected = datetime.now(timezone.utc) - timedelta(days=7)
+                assert abs((cutoff - expected).total_seconds()) < 5
+
+    @pytest.mark.asyncio
+    async def test_invalid_time_range_no_gte_filter(self) -> None:
+        """Test that an invalid time_range does not create gte_filters."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {"time_range": "invalid"}},
+                )
+
+                assert response.status_code == 200
+                gte_filters = captured_kwargs.get("gte_filters")
+                assert gte_filters is None
+
+    @pytest.mark.asyncio
+    async def test_no_time_range_no_gte_filter(self) -> None:
+        """Test that missing time_range does not create gte_filters."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {}},
+                )
+
+                assert response.status_code == 200
+                gte_filters = captured_kwargs.get("gte_filters")
+                assert gte_filters is None
+
+    @pytest.mark.asyncio
+    async def test_combined_provider_and_time_range(self) -> None:
+        """Test that provider and time_range filters work together."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        captured_kwargs = {}
+
+        async def mock_query_records(table, **kwargs):
+            if table == "master_issues":
+                captured_kwargs.update(kwargs)
+                return []
+            return []
+
+        with patch.object(server_module, "query_records", side_effect=mock_query_records):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_search_issues",
+                    json={"arguments": {
+                        "provider": "openai",
+                        "time_range": "30d",
+                        "status": "active",
+                    }},
+                )
+
+                assert response.status_code == 200
+                filters = captured_kwargs.get("filters")
+                assert filters is not None
+                assert filters.get("model_provider") == "openai"
+                assert filters.get("status") == "active"
+
+                gte_filters = captured_kwargs.get("gte_filters")
+                assert gte_filters is not None
+                assert "created_at" in gte_filters
+
+
+class TestGetIssueChildResolution:
+    """Tests for child ID resolution in GET /issues/{issue_id}."""
+
+    @pytest.mark.asyncio
+    async def test_get_issue_child_id_returns_child_format(self):
+        """Test that passing a child UUID returns child-specific response format.
+
+        When resolve_issue_id identifies the ID as a child issue and finds
+        both the child and its master, the response should include
+        is_child_issue=True plus parent context fields.
+        """
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        child_id = str(uuid4())
+        master_id = str(uuid4())
+
+        mock_master = {
+            "id": master_id,
+            "canonical_error": "ImportError: cannot import name 'foo'",
+            "root_cause": "Module renamed in v2",
+            "root_cause_category": "breaking_change",
+            "verification_count": 4,
+            "created_at": "2024-03-01T00:00:00Z",
+        }
+        mock_child = {
+            "id": child_id,
+            "master_issue_id": master_id,
+            "original_error": "ImportError: cannot import name 'foo' from 'bar'",
+            "original_context": "Upgrading bar from v1 to v2",
+            "code_snippet": "from bar import foo",
+            "model": "claude-3-opus",
+            "provider": "anthropic",
+            "language": "python",
+            "framework": "fastapi",
+            "created_at": "2024-03-02T00:00:00Z",
+            "contribution_type": "new_occurrence",
+            "validation_success": True,
+            "metadata": {"env": "production"},
+        }
+
+        with patch(
+            "src.server.resolve_issue_id",
+            new_callable=AsyncMock,
+            return_value=(mock_master, mock_child, True),
+        ):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.get(f"/issues/{child_id}")
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["is_child_issue"] is True
+                assert data["id"] == child_id
+                assert data["master_issue_id"] == master_id
+                assert data["original_error"] == mock_child["original_error"]
+                assert data["original_context"] == mock_child["original_context"]
+                assert data["code_snippet"] == mock_child["code_snippet"]
+                assert data["provider"] == "anthropic"
+                assert data["language"] == "python"
+                assert data["framework"] == "fastapi"
+                # Parent context fields
+                assert "parent_canonical_title" in data
+                assert data["parent_canonical_title"] == mock_master["canonical_error"][:100]
+                assert data["parent_root_cause_category"] == "breaking_change"
+
+    @pytest.mark.asyncio
+    async def test_get_issue_child_id_orphaned(self):
+        """Test that an orphaned child (no master) returns 200 with child data but no parent fields.
+
+        When a child issue exists but its master_issue_id references a
+        non-existent master, resolve_issue_id returns (None, child, True).
+        The endpoint should still return the child data without parent context.
+        """
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        child_id = str(uuid4())
+        master_id = str(uuid4())
+
+        mock_child = {
+            "id": child_id,
+            "master_issue_id": master_id,
+            "original_error": "RuntimeError: event loop closed",
+            "original_context": "Running async tests",
+            "code_snippet": "asyncio.run(main())",
+            "model": "gpt-4",
+            "provider": "openai",
+            "language": "python",
+            "framework": "pytest",
+            "created_at": "2024-04-01T00:00:00Z",
+            "contribution_type": "new_occurrence",
+            "validation_success": False,
+            "metadata": {},
+        }
+
+        with patch(
+            "src.server.resolve_issue_id",
+            new_callable=AsyncMock,
+            return_value=(None, mock_child, True),
+        ):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.get(f"/issues/{child_id}")
+
+                assert response.status_code == 200
+                data = response.json()
+                assert data["is_child_issue"] is True
+                assert data["id"] == child_id
+                assert data["master_issue_id"] == master_id
+                assert data["original_error"] == mock_child["original_error"]
+                assert data["provider"] == "openai"
+                # Parent context fields should NOT be present for orphans
+                assert "parent_canonical_title" not in data
+                assert "parent_root_cause_category" not in data
+
+
+class TestListChildIssuesEndpoint:
+    """Tests for GET /issues/{issue_id}/children endpoint."""
+
+    @pytest.mark.asyncio
+    async def test_list_children_success(self):
+        """Test listing children for a master issue returns expected format.
+
+        Given a valid master issue with 2 child issues, the endpoint should
+        return a 200 with a children list, total count, and pagination info.
+        """
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        master_id = str(uuid4())
+        mock_master = {
+            "id": master_id,
+            "canonical_error": "ValueError: invalid literal",
+            "root_cause": "Type mismatch",
+            "root_cause_category": "type_error",
+        }
+
+        child1_id = str(uuid4())
+        child2_id = str(uuid4())
+        mock_children = [
+            {
+                "id": child1_id,
+                "master_issue_id": master_id,
+                "original_error": "ValueError: invalid literal for int()",
+                "provider": "anthropic",
+                "language": "python",
+                "framework": "django",
+                "created_at": "2024-05-02T00:00:00Z",
+                "contribution_type": "new_occurrence",
+                "model": "claude-3-sonnet",
+                "validation_success": True,
+            },
+            {
+                "id": child2_id,
+                "master_issue_id": master_id,
+                "original_error": "ValueError: could not convert string to float",
+                "provider": "openai",
+                "language": "python",
+                "framework": "flask",
+                "created_at": "2024-05-01T00:00:00Z",
+                "contribution_type": "new_occurrence",
+                "model": "gpt-4",
+                "validation_success": False,
+            },
+        ]
+
+        with patch.object(
+            server_module, "get_record", new_callable=AsyncMock, return_value=mock_master
+        ):
+            with patch.object(
+                server_module, "query_records", new_callable=AsyncMock, return_value=mock_children
+            ):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
+
+                    response = client.get(f"/issues/{master_id}/children")
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["master_issue_id"] == master_id
+                    assert data["total"] == 2
+                    assert data["limit"] == 50
+                    assert data["offset"] == 0
+                    assert len(data["children"]) == 2
+                    # Verify child structure
+                    first_child = data["children"][0]
+                    assert first_child["id"] == child1_id
+                    assert first_child["master_issue_id"] == master_id
+                    assert first_child["original_error"] == mock_children[0]["original_error"]
+                    assert first_child["provider"] == "anthropic"
+                    assert first_child["model_name"] == "claude-3-sonnet"
+                    assert first_child["validation_success"] is True
+
+    @pytest.mark.asyncio
+    async def test_list_children_empty(self):
+        """Test listing children for a master issue with no children returns empty list."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        master_id = str(uuid4())
+        mock_master = {
+            "id": master_id,
+            "canonical_error": "KeyError: 'missing_key'",
+            "root_cause": "Dictionary key not found",
+            "root_cause_category": "key_error",
+        }
+
+        with patch.object(
+            server_module, "get_record", new_callable=AsyncMock, return_value=mock_master
+        ):
+            with patch.object(
+                server_module, "query_records", new_callable=AsyncMock, return_value=[]
+            ):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.app)
+
+                    response = client.get(f"/issues/{master_id}/children")
+
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["children"] == []
+                    assert data["total"] == 0
+                    assert data["master_issue_id"] == master_id
+
+    @pytest.mark.asyncio
+    async def test_list_children_invalid_uuid(self):
+        """Test that an invalid UUID returns 400 with invalid_request error."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+            mcp = create_mcp_server(use_auth=False)
+            client = TestClient(mcp.app)
+
+            response = client.get("/issues/invalid-uuid/children")
+
+            assert response.status_code == 400
+            data = response.json()
+            assert data["error"] == "invalid_request"
+
+    @pytest.mark.asyncio
+    async def test_list_children_master_not_found(self):
+        """Test that a valid UUID for a non-existent master returns 404."""
+        try:
+            from src.server import create_mcp_server
+            from starlette.testclient import TestClient
+            import src.server as server_module
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        missing_id = str(uuid4())
+
+        with patch.object(
+            server_module, "get_record", new_callable=AsyncMock, return_value=None
+        ):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.get(f"/issues/{missing_id}/children")
+
+                assert response.status_code == 404
+                data = response.json()
+                assert data["error"] == "not_found"
+
+
+class TestGetFixBundleChildResolution:
+    """Tests for fix bundle endpoint when called with a child issue ID."""
+
+    @pytest.mark.asyncio
+    async def test_get_fix_bundle_child_id_resolves_to_master(self):
+        """Test that the fix bundle tool handles child ID resolution internally.
+
+        When a child issue ID is passed to gim_get_fix_bundle, the tool
+        resolves it to the master and returns the fix bundle with
+        master_issue_id and is_child_issue fields.
+        """
+        try:
+            from src.server import create_mcp_server
+            from src.tools.gim_get_fix_bundle import get_fix_bundle_tool
+            from starlette.testclient import TestClient
+        except ImportError:
+            pytest.skip("Required dependencies not installed")
+
+        child_id = str(uuid4())
+        master_id = str(uuid4())
+
+        mock_text = MagicMock()
+        mock_text.text = json.dumps({
+            "success": True,
+            "issue_id": master_id,
+            "master_issue_id": master_id,
+            "is_child_issue": True,
+            "child_issue_id": child_id,
+            "fix_bundle": {
+                "id": str(uuid4()),
+                "summary": "Upgrade dependency to v2",
+                "fix_steps": ["pip install bar>=2.0"],
+                "code_changes": [{"file": "main.py", "diff": "- from bar import foo\n+ from bar.v2 import foo"}],
+                "environment_actions": [{"action": "upgrade", "package": "bar"}],
+                "constraints": {},
+                "verification_steps": [{"step": "Run import", "expected_output": "No error"}],
+                "confidence_score": 0.85,
+                "verification_count": 3,
+            },
+        })
+
+        with patch.object(
+            get_fix_bundle_tool, "execute",
+            new_callable=AsyncMock, return_value=[mock_text],
+        ):
+            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                mcp = create_mcp_server(use_auth=False)
+                client = TestClient(mcp.app)
+
+                response = client.post(
+                    "/mcp/tools/gim_get_fix_bundle",
+                    json={"arguments": {"issue_id": child_id}},
+                )
+
+                assert response.status_code == 200
+                data = response.json()
+                assert "content" in data
+                assert len(data["content"]) > 0
+                # Parse the text content to verify child resolution fields
+                content_text = data["content"][0]["text"]
+                parsed = json.loads(content_text)
+                assert parsed["master_issue_id"] == master_id
+                assert parsed["is_child_issue"] is True
+                assert parsed["child_issue_id"] == child_id
