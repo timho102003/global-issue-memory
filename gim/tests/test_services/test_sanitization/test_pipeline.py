@@ -1,5 +1,7 @@
 """Tests for sanitization pipeline with two-layer approach."""
 
+from unittest.mock import patch
+
 import pytest
 
 from src.services.sanitization.pipeline import (
@@ -12,9 +14,19 @@ from src.services.sanitization.pii_scrubber import PIIScanResult
 from src.services.sanitization.mre_synthesizer import MREResult
 
 
+def _low_threshold() -> float:
+    """Return a low threshold for sanitization tests.
+
+    Returns:
+        float: A low confidence threshold that allows all submissions.
+    """
+    return 0.0
+
+
 class TestRunSanitizationPipelineSync:
     """Tests for synchronous sanitization pipeline (Layer 1 only)."""
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_clean_submission(self) -> None:
         """Test pipeline with clean submission."""
         result = run_sanitization_pipeline_sync(
@@ -24,6 +36,7 @@ class TestRunSanitizationPipelineSync:
         assert result.success is True
         assert result.confidence_score > 0.5
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_sanitizes_private_key_without_rejection(self) -> None:
         """Test that private keys are sanitized, not rejected."""
         result = run_sanitization_pipeline_sync(
@@ -40,6 +53,7 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3
         assert "BEGIN RSA PRIVATE KEY" not in result.sanitized_context
         assert "REDACTED" in result.sanitized_context
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_sanitizes_secrets(self) -> None:
         """Test that secrets are sanitized."""
         result = run_sanitization_pipeline_sync(
@@ -49,6 +63,7 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3
         assert "sk-" not in result.sanitized_error
         assert "REDACTED" in result.sanitized_error
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_sanitizes_pii(self) -> None:
         """Test that PII is sanitized."""
         result = run_sanitization_pipeline_sync(
@@ -58,6 +73,7 @@ MIIEpAIBAAKCAQEA0Z3VS5JJcds3
         assert "/Users/johndoe" not in result.sanitized_error
         assert "john@company.com" not in result.sanitized_error
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_synthesizes_mre(self) -> None:
         """Test MRE synthesis in pipeline."""
         code = """
@@ -76,6 +92,7 @@ def get_user(user_id):
         # Domain names should be abstracted
         assert "UserService" not in result.sanitized_mre
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_collects_warnings(self) -> None:
         """Test that warnings are collected."""
         result = run_sanitization_pipeline_sync(
@@ -85,12 +102,14 @@ def get_user(user_id):
         # Should have warnings about sanitization
         assert len(result.warnings) > 0
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_empty_error_message(self) -> None:
         """Test handling of empty error message."""
         result = run_sanitization_pipeline_sync(error_message="")
         assert result.success is True
         assert result.sanitized_error == ""
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_handles_many_secrets_without_rejection(self) -> None:
         """Test that many secrets are sanitized, not rejected."""
         # Create text with many API-key-like patterns
@@ -224,6 +243,7 @@ class TestCalculateConfidenceScore:
 class TestIntegration:
     """Integration tests for sanitization pipeline."""
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_real_world_error(self) -> None:
         """Test with realistic error submission."""
         result = run_sanitization_pipeline_sync(
@@ -241,6 +261,7 @@ def search(query: str) -> str:
         assert result.success is True
         assert result.confidence_score > 0.5
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_error_with_mixed_sensitive_data(self) -> None:
         """Test error with various sensitive data types."""
         result = run_sanitization_pipeline_sync(
@@ -256,6 +277,7 @@ Error connecting to database:
         assert "admin@company.local" not in result.sanitized_error
         assert "/home/developer" not in result.sanitized_error
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_code_with_credentials(self) -> None:
         """Test code containing credentials is sanitized."""
         result = run_sanitization_pipeline_sync(
@@ -276,9 +298,10 @@ def connect():
         assert "sk-secret" not in result.sanitized_mre
         assert "password123" not in result.sanitized_mre
 
+    @patch("src.services.sanitization.pipeline._get_confidence_threshold", _low_threshold)
     def test_always_succeeds(self) -> None:
-        """Test that pipeline always succeeds (no rejection)."""
-        # Even with lots of sensitive data, should succeed
+        """Test that pipeline sanitizes all data (low threshold)."""
+        # Even with lots of sensitive data, should succeed with low threshold
         result = run_sanitization_pipeline_sync(
             error_message="Error with sk-key1 and sk-key2 and ghp_token123",
             error_context="Contact admin@internal.corp at 10.0.0.1",

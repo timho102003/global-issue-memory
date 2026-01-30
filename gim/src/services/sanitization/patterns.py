@@ -1,7 +1,7 @@
 """Regex patterns for secret and PII detection."""
 
 import re
-from typing import Dict, Pattern
+from typing import Callable, Dict, Pattern
 
 # Secret detection patterns
 SECRET_PATTERNS: Dict[str, Pattern] = {
@@ -84,6 +84,21 @@ SECRET_PATTERNS: Dict[str, Pattern] = {
         r"-----BEGIN PRIVATE KEY-----[\s\S]+?-----END PRIVATE KEY-----"
     ),
 
+    # Payment provider keys
+    "stripe_secret_key": re.compile(r"sk_live_[a-zA-Z0-9]{24,}"),
+    "stripe_publishable_key": re.compile(r"pk_live_[a-zA-Z0-9]{24,}"),
+    "stripe_test_secret_key": re.compile(r"sk_test_[a-zA-Z0-9]{24,}"),
+    "stripe_test_publishable_key": re.compile(r"pk_test_[a-zA-Z0-9]{24,}"),
+
+    # Communication platform keys
+    "twilio_key": re.compile(r"SK[a-f0-9]{32}"),
+    "sendgrid_key": re.compile(r"SG\.[a-zA-Z0-9_-]{22}\.[a-zA-Z0-9_-]{43}"),
+
+    # Package registry tokens
+    "npm_token": re.compile(r"npm_[a-zA-Z0-9]{36}"),
+    "pypi_token": re.compile(r"pypi-[a-zA-Z0-9_-]{36,}"),
+    "docker_hub_token": re.compile(r"dckr_pat_[a-zA-Z0-9_-]{27,}"),
+
     # Generic patterns
     "generic_api_key": re.compile(
         r"['\"]?api[_-]?key['\"]?\s*[:=]\s*['\"]([^'\"]{20,})['\"]",
@@ -123,6 +138,16 @@ PII_PATTERNS: Dict[str, Pattern] = {
     "ipv6_address": re.compile(
         r"\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b"
     ),
+    "ipv6_compressed": re.compile(
+        r"(?:"
+        r"(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}"  # 1-6 groups::group
+        r"|(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}"  # 1-5 groups::1-2 groups
+        r"|(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}"  # 1-4 groups::1-3 groups
+        r"|[0-9a-fA-F]{1,4}::(?:[0-9a-fA-F]{1,4}:){0,4}[0-9a-fA-F]{1,4}"  # group::groups
+        r"|::(?:[0-9a-fA-F]{1,4}:){0,5}[0-9a-fA-F]{1,4}"  # ::groups
+        r"|::1"  # loopback shorthand
+        r")"
+    ),
 
     # Internal URLs
     "internal_url": re.compile(
@@ -143,9 +168,9 @@ PII_PATTERNS: Dict[str, Pattern] = {
         r"3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b"
     ),
 
-    # Social Security Number (US)
+    # Social Security Number (US) - requires keyword context to avoid false positives
     "ssn": re.compile(
-        r"\b[0-9]{3}[-\s]?[0-9]{2}[-\s]?[0-9]{4}\b"
+        r"(?i)(?:ssn|social[- ]?security)[:\s#]*\d{3}-?\d{2}-?\d{4}"
     ),
 }
 
@@ -156,6 +181,7 @@ PII_REPLACEMENTS: Dict[str, str] = {
     "windows_user_path": "C:\\path\\to\\project",
     "ipv4_address": "0.0.0.0",
     "ipv6_address": "::1",
+    "ipv6_compressed": "::1",
     "internal_url": "https://api.example.com",
     "phone_us": "000-000-0000",
     "credit_card": "0000-0000-0000-0000",
@@ -189,3 +215,51 @@ CODE_NAME_PATTERNS: Dict[str, Pattern] = {
         re.IGNORECASE,
     ),
 }
+
+
+# Indexed placeholder prefix mapping for PII types
+PII_INDEXED_PREFIXES: Dict[str, str] = {
+    "email": "EMAIL",
+    "unix_home_path": "PATH",
+    "windows_user_path": "PATH",
+    "ipv4_address": "IP",
+    "ipv6_address": "IP",
+    "ipv6_compressed": "IP",
+    "internal_url": "URL",
+    "phone_us": "PHONE",
+    "credit_card": "CREDIT_CARD",
+    "ssn": "SSN",
+}
+
+
+def _make_indexed_replacer(prefix: str) -> Callable[[re.Match], str]:
+    """Create a replacement function that uses indexed placeholders.
+
+    Each unique matched value gets a unique index. The same value appearing
+    multiple times will always map to the same index.
+
+    Args:
+        prefix: The placeholder prefix (e.g., "EMAIL", "PHONE").
+
+    Returns:
+        A replacement function for re.sub that returns indexed placeholders.
+    """
+    counter: Dict[str, int] = {"n": 0}
+    seen: Dict[str, int] = {}
+
+    def replacer(match: re.Match) -> str:
+        """Replace matched text with indexed placeholder.
+
+        Args:
+            match: The regex match object.
+
+        Returns:
+            str: Indexed placeholder string.
+        """
+        value = match.group(0)
+        if value not in seen:
+            counter["n"] += 1
+            seen[value] = counter["n"]
+        return f"<{prefix}_{seen[value]}>"
+
+    return replacer

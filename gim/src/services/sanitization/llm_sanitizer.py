@@ -44,12 +44,14 @@ SANITIZE_CODE_PROMPT = """You are a code sanitization expert. Your task is to re
 7. Keep the code minimal (10-50 lines ideally)
 
 **Original Code:**
-```
+<user_code>
 {code}
-```
+</user_code>
 
 **Error Context (if provided):**
+<error_context>
 {error_context}
+</error_context>
 
 **Output ONLY the sanitized code, nothing else. No explanations, no markdown code blocks, just the raw code:**
 """
@@ -62,7 +64,9 @@ SANITIZE_ERROR_MESSAGE_PROMPT = """Sanitize the following error message by:
 5. Keeping the technical error information intact
 
 **Original Error:**
+<user_error>
 {error_message}
+</user_error>
 
 **Output ONLY the sanitized error message, nothing else:**
 """
@@ -74,7 +78,9 @@ SANITIZE_CONTEXT_PROMPT = """Sanitize the following context/description by:
 4. Keeping the technical description intact
 
 **Original Context:**
+<user_context>
 {context}
+</user_context>
 
 **Output ONLY the sanitized context, nothing else:**
 """
@@ -87,7 +93,7 @@ def _get_genai_client() -> genai.Client:
         genai.Client: Configured Gemini client.
     """
     settings = get_settings()
-    return genai.Client(api_key=settings.google_api_key)
+    return genai.Client(api_key=settings.google_api_key.get_secret_value())
 
 
 async def sanitize_code_with_llm(
@@ -154,7 +160,7 @@ async def sanitize_code_with_llm(
     except Exception as e:
         return LLMSanitizationResult(
             original_text=code,
-            sanitized_text=code,  # Return original on failure
+            sanitized_text="",  # Return empty on failure to avoid leaking unsanitized data
             success=False,
             error=str(e),
         )
@@ -207,7 +213,7 @@ async def sanitize_error_message_with_llm(
     except Exception as e:
         return LLMSanitizationResult(
             original_text=error_message,
-            sanitized_text=error_message,
+            sanitized_text="",  # Return empty on failure to avoid leaking unsanitized data
             success=False,
             error=str(e),
         )
@@ -260,7 +266,7 @@ async def sanitize_context_with_llm(
     except Exception as e:
         return LLMSanitizationResult(
             original_text=context,
-            sanitized_text=context,
+            sanitized_text="",  # Return empty on failure to avoid leaking unsanitized data
             success=False,
             error=str(e),
         )

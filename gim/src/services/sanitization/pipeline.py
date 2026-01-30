@@ -18,6 +18,24 @@ from .pii_scrubber import PIIScanResult, scrub_pii
 from .secret_detector import SecretScanResult, detect_secrets
 
 
+_DEFAULT_CONFIDENCE_THRESHOLD = 0.85
+
+
+def _get_confidence_threshold() -> float:
+    """Get the sanitization confidence threshold from settings.
+
+    Falls back to a safe default if settings are unavailable.
+
+    Returns:
+        float: The confidence threshold value.
+    """
+    try:
+        from src.config import get_settings
+        return get_settings().sanitization_confidence_threshold
+    except Exception:
+        return _DEFAULT_CONFIDENCE_THRESHOLD
+
+
 @dataclass
 class SanitizationResult:
     """Final result of the sanitization pipeline.
@@ -255,10 +273,11 @@ async def run_sanitization_pipeline(
     )
 
     # =========================================================================
-    # Build Result (Always succeed - no rejection)
+    # Build Result (check confidence threshold)
     # =========================================================================
 
-    result.success = True
+    threshold = _get_confidence_threshold()
+    result.success = confidence >= threshold
     result.sanitized_error = sanitized_error
     result.sanitized_context = sanitized_context
     result.sanitized_mre = sanitized_code
@@ -345,7 +364,8 @@ def run_sanitization_pipeline_sync(
         llm_used=False,
     )
 
-    result.success = True
+    threshold = _get_confidence_threshold()
+    result.success = confidence >= threshold
     result.sanitized_error = sanitized_error
     result.sanitized_context = sanitized_context
     result.sanitized_mre = sanitized_code

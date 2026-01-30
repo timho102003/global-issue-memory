@@ -95,8 +95,8 @@ class TestSanitizeCodeWithLLMMocked:
             assert "```" not in result.sanitized_text
 
     @pytest.mark.asyncio
-    async def test_api_error_returns_original(self) -> None:
-        """Test that API errors return original code."""
+    async def test_api_error_returns_empty(self) -> None:
+        """Test that API errors return empty string to avoid leaking unsanitized data."""
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = Exception("API Error")
 
@@ -107,7 +107,8 @@ class TestSanitizeCodeWithLLMMocked:
             result = await sanitize_code_with_llm("original_code()")
 
             assert result.success is False
-            assert result.sanitized_text == "original_code()"
+            assert result.sanitized_text == ""
+            assert result.original_text == "original_code()"
             assert "API Error" in result.error
 
     @pytest.mark.asyncio
@@ -167,8 +168,8 @@ class TestSanitizeErrorMessageWithLLMMocked:
             assert len(result.changes_made) > 0
 
     @pytest.mark.asyncio
-    async def test_api_error_returns_original(self) -> None:
-        """Test that API errors return original message."""
+    async def test_api_error_returns_empty(self) -> None:
+        """Test that API errors return empty string to avoid leaking unsanitized data."""
         mock_client = MagicMock()
         mock_client.models.generate_content.side_effect = Exception("Network Error")
 
@@ -179,7 +180,8 @@ class TestSanitizeErrorMessageWithLLMMocked:
             result = await sanitize_error_message_with_llm("original error")
 
             assert result.success is False
-            assert result.sanitized_text == "original error"
+            assert result.sanitized_text == ""
+            assert result.original_text == "original error"
             assert "Network Error" in result.error
 
 

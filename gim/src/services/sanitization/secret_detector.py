@@ -92,7 +92,7 @@ def calculate_entropy(text: str) -> float:
 def detect_high_entropy_strings(
     text: str,
     min_length: int = 20,
-    entropy_threshold: float = 4.5,
+    entropy_threshold: float = 4.0,
 ) -> List[DetectedSecret]:
     """Detect high-entropy strings that may be secrets.
 

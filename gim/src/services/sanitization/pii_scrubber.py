@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Dict, List, Set
 
-from .patterns import PII_PATTERNS, PII_REPLACEMENTS
+from .patterns import PII_INDEXED_PREFIXES, PII_PATTERNS, PII_REPLACEMENTS
 
 
 @dataclass
@@ -120,10 +120,36 @@ def scrub_pii(text: str) -> PIIScanResult:
 
     all_pii: List[DetectedPII] = []
 
+    # Track indexed counters per prefix for indexed placeholders
+    index_counters: Dict[str, int] = {}
+    index_seen: Dict[str, Dict[str, int]] = {}
+
+    def _get_indexed_replacement(pii_type: str, matched_value: str) -> str:
+        """Get an indexed replacement placeholder for a PII value.
+
+        Args:
+            pii_type: The PII type key.
+            matched_value: The original matched text.
+
+        Returns:
+            str: Indexed placeholder like <EMAIL_1> or <PHONE_2>.
+        """
+        prefix = PII_INDEXED_PREFIXES.get(pii_type)
+        if prefix is None:
+            return PII_REPLACEMENTS.get(pii_type, "<REDACTED>")
+
+        if prefix not in index_seen:
+            index_seen[prefix] = {}
+            index_counters[prefix] = 0
+
+        if matched_value not in index_seen[prefix]:
+            index_counters[prefix] += 1
+            index_seen[prefix][matched_value] = index_counters[prefix]
+
+        return f"<{prefix}_{index_seen[prefix][matched_value]}>"
+
     # Detect all PII types
     for pii_type, pattern in PII_PATTERNS.items():
-        replacement = PII_REPLACEMENTS.get(pii_type, "<REDACTED>")
-
         for match in pattern.finditer(text):
             # For paths, we want the full path, not just the username
             if pii_type in ("unix_home_path", "windows_user_path"):
@@ -135,11 +161,11 @@ def scrub_pii(text: str) -> PIIScanResult:
                     end_pos += 1
                 full_match = text[match.start():end_pos]
 
-                # Adjust replacement to preserve path structure
-                if pii_type == "unix_home_path":
-                    replacement = "/path/to/project" + full_match[len(match.group(0)):]
-                else:
-                    replacement = "C:\\path\\to\\project" + full_match[len(match.group(0)):]
+                replacement = _get_indexed_replacement(pii_type, full_match)
+                # Append remaining path segments after the home dir
+                remaining = full_match[len(match.group(0)):]
+                if remaining:
+                    replacement = replacement + remaining
 
                 all_pii.append(
                     DetectedPII(
@@ -151,6 +177,7 @@ def scrub_pii(text: str) -> PIIScanResult:
                     )
                 )
             else:
+                replacement = _get_indexed_replacement(pii_type, match.group(0))
                 all_pii.append(
                     DetectedPII(
                         pii_type=pii_type,

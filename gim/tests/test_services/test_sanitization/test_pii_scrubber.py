@@ -16,65 +16,66 @@ class TestScrubPII:
         text = "Contact: john.doe@company.com for support"
         result = scrub_pii(text)
         assert "john.doe@company.com" not in result.sanitized_text
-        assert "user@example.com" in result.sanitized_text
+        assert "<EMAIL_1>" in result.sanitized_text
         assert "email" in result.pii_types_found
 
     def test_scrubs_multiple_emails(self) -> None:
-        """Test multiple email addresses."""
+        """Test multiple email addresses with indexed placeholders."""
         text = "Send to alice@corp.com and bob@company.org"
         result = scrub_pii(text)
         assert "alice@corp.com" not in result.sanitized_text
         assert "bob@company.org" not in result.sanitized_text
-        assert result.sanitized_text.count("user@example.com") == 2
+        assert "<EMAIL_1>" in result.sanitized_text
+        assert "<EMAIL_2>" in result.sanitized_text
 
     def test_scrubs_unix_path(self) -> None:
         """Test Unix home path scrubbing."""
         text = "File not found: /Users/johndoe/project/main.py"
         result = scrub_pii(text)
         assert "/Users/johndoe" not in result.sanitized_text
-        assert "/path/to" in result.sanitized_text
+        assert "<PATH_1>" in result.sanitized_text
 
     def test_scrubs_linux_path(self) -> None:
         """Test Linux home path scrubbing."""
         text = "Config at /home/alice/config.yml"
         result = scrub_pii(text)
         assert "/home/alice" not in result.sanitized_text
-        assert "/path/to" in result.sanitized_text
+        assert "<PATH_1>" in result.sanitized_text
 
     def test_scrubs_windows_path(self) -> None:
         """Test Windows user path scrubbing."""
         text = r"Error in C:\Users\JohnDoe\Documents\project\script.py"
         result = scrub_pii(text)
         assert "JohnDoe" not in result.sanitized_text
-        assert r"C:\path\to" in result.sanitized_text
+        assert "<PATH_1>" in result.sanitized_text
 
     def test_scrubs_ipv4_address(self) -> None:
         """Test IPv4 address scrubbing."""
         text = "Connect to server at 192.168.1.100:8080"
         result = scrub_pii(text)
         assert "192.168.1.100" not in result.sanitized_text
-        assert "0.0.0.0" in result.sanitized_text
+        assert "<IP_1>" in result.sanitized_text
 
     def test_scrubs_internal_url(self) -> None:
         """Test internal URL scrubbing."""
         text = "API endpoint: https://internal.company.corp/api/v1"
         result = scrub_pii(text)
         assert "internal.company.corp" not in result.sanitized_text
-        assert "api.example.com" in result.sanitized_text
+        assert "<URL_1>" in result.sanitized_text
 
     def test_scrubs_localhost(self) -> None:
         """Test localhost URL scrubbing."""
         text = "Server running at http://localhost:3000"
         result = scrub_pii(text)
         assert "localhost" not in result.sanitized_text
-        assert "api.example.com" in result.sanitized_text
+        assert "<URL_1>" in result.sanitized_text
 
     def test_scrubs_phone_number(self) -> None:
         """Test US phone number scrubbing."""
         text = "Call support at (555) 123-4567"
         result = scrub_pii(text)
         assert "555" not in result.sanitized_text
-        assert "000-000-0000" in result.sanitized_text
+        assert "<PHONE_1>" in result.sanitized_text
 
     def test_preserves_clean_text(self) -> None:
         """Test that clean text is preserved."""
