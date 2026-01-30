@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Eye, EyeOff } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 
 interface GimIdCardProps {
@@ -9,10 +9,19 @@ interface GimIdCardProps {
 }
 
 /**
- * GIM ID card component with copy functionality.
+ * Masks a GIM ID to show only first 4 and last 4 characters.
+ */
+function maskGimId(id: string): string {
+  if (id.length <= 8) return id;
+  return `${id.slice(0, 4)}${"*".repeat(id.length - 8)}${id.slice(-4)}`;
+}
+
+/**
+ * GIM ID card component with copy and visibility toggle.
  */
 export function GimIdCard({ gimId }: GimIdCardProps) {
   const [copied, setCopied] = useState(false);
+  const [visible, setVisible] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(gimId);
@@ -26,13 +35,24 @@ export function GimIdCard({ gimId }: GimIdCardProps) {
         <CardTitle className="text-base">Your GIM ID</CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-3 rounded-xl bg-bg-muted p-4">
+        <div className="flex items-center gap-2 rounded-xl bg-bg-muted p-4">
           <code className="flex-1 font-mono text-sm text-text-primary">
-            {gimId}
+            {visible ? gimId : maskGimId(gimId)}
           </code>
           <button
+            onClick={() => setVisible((v) => !v)}
+            className="rounded-lg p-2 text-text-muted transition-colors duration-150 hover:bg-white hover:text-text-primary"
+            title={visible ? "Hide GIM ID" : "Show GIM ID"}
+          >
+            {visible ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
+          </button>
+          <button
             onClick={handleCopy}
-            className="rounded-lg p-2 text-text-muted hover:bg-white hover:text-text-primary"
+            className="rounded-lg p-2 text-text-muted transition-colors duration-150 hover:bg-white hover:text-text-primary"
             title="Copy GIM ID"
           >
             {copied ? (
