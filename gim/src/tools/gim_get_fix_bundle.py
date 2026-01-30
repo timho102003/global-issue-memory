@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from src.db.issue_resolver import resolve_issue_id
 from src.db.supabase_client import get_record, query_records, insert_record
 from src.exceptions import GIMError, SupabaseError, ValidationError
 from src.logging_config import get_logger, set_request_context
@@ -116,17 +117,20 @@ async def execute(arguments: Dict[str, Any]) -> List:
             raise ValidationError("issue_id is required", field="issue_id")
         issue_id = validate_uuid(issue_id, "issue_id")
 
-        # Fetch issue details
-        logger.debug(f"Fetching issue {issue_id}")
-        issue = await get_record(table="master_issues", record_id=issue_id)
-        if not issue:
+        # Resolve issue ID (handles both master and child IDs)
+        logger.debug(f"Resolving issue {issue_id}")
+        master_issue, child_issue, is_child = await resolve_issue_id(issue_id)
+        if not master_issue:
             logger.warning(f"Issue not found: {issue_id}")
             return create_error_response(f"Issue not found: {issue_id}")
 
-        # Fetch fix bundle(s)
+        master_issue_id = master_issue.get("id")
+        issue = master_issue
+
+        # Fetch fix bundle(s) using the master issue ID
         fix_bundles = await query_records(
             table="fix_bundles",
-            filters={"master_issue_id": issue_id},
+            filters={"master_issue_id": master_issue_id},
             order_by="confidence_score",
             ascending=False,
         )
@@ -136,6 +140,8 @@ async def execute(arguments: Dict[str, Any]) -> List:
             return create_text_response({
                 "success": True,
                 "issue_id": issue_id,
+                "master_issue_id": master_issue_id,
+                "is_child_issue": is_child,
                 "message": "No fix bundle available for this issue",
                 "fix_bundle": None,
             })
@@ -145,7 +151,7 @@ async def execute(arguments: Dict[str, Any]) -> List:
 
         # Log retrieval event
         await _log_retrieval_event(
-            issue_id=issue_id,
+            issue_id=master_issue_id,
             fix_bundle_id=best_fix.get("id"),
             gim_id=gim_id,
         )
@@ -154,6 +160,8 @@ async def execute(arguments: Dict[str, Any]) -> List:
         return create_text_response({
             "success": True,
             "issue_id": issue_id,
+            "master_issue_id": master_issue_id,
+            "is_child_issue": is_child,
             "canonical_error": issue.get("canonical_error"),
             "root_cause": issue.get("root_cause"),
             "fix_bundle": {

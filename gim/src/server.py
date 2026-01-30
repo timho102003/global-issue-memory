@@ -70,6 +70,7 @@ import json
 import logging
 import os
 from contextlib import asynccontextmanager
+from datetime import datetime, timedelta, timezone
 from typing import Any, AsyncGenerator, List, Optional
 from urllib.parse import urlencode
 from uuid import UUID
@@ -89,6 +90,7 @@ from src.auth.models import (
     RevokeRequest,
     TokenRequest,
 )
+from src.db.issue_resolver import resolve_issue_id
 from src.db.supabase_client import get_record, query_records
 from src.auth.oauth_models import (
     OAuthAuthorizationRequest,
@@ -1018,6 +1020,23 @@ def _extract_optional_gim_id(request: Request) -> Optional[str]:
         return None
 
 
+def _time_range_to_iso(time_range: str) -> Optional[str]:
+    """Convert time range string to UTC ISO cutoff datetime.
+
+    Args:
+        time_range: Time range string (e.g., "1d", "7d", "30d", "90d").
+
+    Returns:
+        Optional[str]: ISO formatted UTC datetime string, or None if invalid.
+    """
+    mapping = {"1d": 1, "7d": 7, "30d": 30, "90d": 90}
+    days = mapping.get(time_range)
+    if days is None:
+        return None
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    return cutoff.isoformat()
+
+
 def _register_api_endpoints(mcp: FastMCP) -> None:
     """Register REST API endpoints for frontend consumption.
 
@@ -1049,6 +1068,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 # Extract and validate filter params
                 category = arguments.get("category")
                 status_filter = arguments.get("status")
+                provider_filter = arguments.get("provider")
 
                 valid_statuses = {"active", "superseded", "invalid"}
                 filters = {}
@@ -1056,10 +1076,20 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     filters["root_cause_category"] = category
                 if status_filter and status_filter in valid_statuses:
                     filters["status"] = status_filter
+                if provider_filter:
+                    filters["model_provider"] = provider_filter
+
+                time_range = arguments.get("time_range")
+                gte_filters = None
+                if time_range:
+                    cutoff = _time_range_to_iso(time_range)
+                    if cutoff:
+                        gte_filters = {"created_at": cutoff}
 
                 all_issues = await query_records(
                     table="master_issues",
                     filters=filters if filters else None,
+                    gte_filters=gte_filters,
                     order_by="created_at",
                     ascending=False,
                     limit=limit,
@@ -1264,15 +1294,19 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 status_code=500,
             )
 
-    @mcp.custom_route("/issues/{issue_id}", methods=["GET"])
-    async def api_get_issue(request: Request) -> JSONResponse:
-        """Get a single issue by ID.
+    @mcp.custom_route("/issues/{issue_id}/children", methods=["GET"])
+    async def api_list_child_issues(request: Request) -> JSONResponse:
+        """List child issues for a master issue.
 
         Path params:
-            issue_id: Issue UUID.
+            issue_id: Master issue UUID.
+
+        Query params:
+            limit: Max number of children to return (default 50).
+            offset: Number of children to skip (default 0).
 
         Returns:
-            JSON with MasterIssue format.
+            JSON with children list and pagination.
         """
         try:
             issue_id = request.path_params.get("issue_id")
@@ -1297,10 +1331,104 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=400,
                 )
 
-            # Query the master_issues table
-            issue = await get_record(table="master_issues", record_id=issue_id)
+            # Verify master issue exists
+            master = await get_record(table="master_issues", record_id=issue_id)
+            if not master:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="not_found",
+                        error_description=f"Master issue {issue_id} not found",
+                    ).model_dump(),
+                    status_code=404,
+                )
 
-            if not issue:
+            limit = int(request.query_params.get("limit", 50))
+            offset = int(request.query_params.get("offset", 0))
+
+            # Query child issues
+            children = await query_records(
+                table="child_issues",
+                filters={"master_issue_id": issue_id},
+                order_by="created_at",
+                ascending=False,
+                limit=limit,
+            )
+
+            child_list = []
+            for child in children:
+                child_list.append({
+                    "id": child.get("id"),
+                    "master_issue_id": child.get("master_issue_id"),
+                    "original_error": child.get("original_error", ""),
+                    "provider": child.get("provider", ""),
+                    "language": child.get("language", ""),
+                    "framework": child.get("framework", ""),
+                    "submitted_at": child.get("created_at", ""),
+                    "contribution_type": child.get("contribution_type", ""),
+                    "model_name": child.get("model", ""),
+                    "validation_success": child.get("validation_success"),
+                })
+
+            return JSONResponse(
+                content={
+                    "children": child_list,
+                    "total": len(child_list),
+                    "limit": limit,
+                    "offset": offset,
+                    "master_issue_id": issue_id,
+                },
+                status_code=200,
+            )
+        except Exception as e:
+            logger.error(f"List child issues API error: {e}")
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="server_error",
+                    error_description="An unexpected error occurred",
+                ).model_dump(),
+                status_code=500,
+            )
+
+    @mcp.custom_route("/issues/{issue_id}", methods=["GET"])
+    async def api_get_issue(request: Request) -> JSONResponse:
+        """Get a single issue by ID (master or child).
+
+        If the ID belongs to a child issue, returns child-specific response
+        with parent context.
+
+        Path params:
+            issue_id: Issue UUID (master or child).
+
+        Returns:
+            JSON with issue details.
+        """
+        try:
+            issue_id = request.path_params.get("issue_id")
+            if not issue_id:
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="invalid_request",
+                        error_description="issue_id is required",
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            # Validate UUID format
+            try:
+                UUID(issue_id)
+            except (ValueError, TypeError):
+                return JSONResponse(
+                    content=ErrorResponse(
+                        error="invalid_request",
+                        error_description="Invalid issue_id format",
+                    ).model_dump(),
+                    status_code=400,
+                )
+
+            # Resolve issue ID (handles both master and child)
+            master_issue, child_issue, is_child = await resolve_issue_id(issue_id)
+
+            if not master_issue and not child_issue:
                 return JSONResponse(
                     content=ErrorResponse(
                         error="not_found",
@@ -1309,17 +1437,49 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=404,
                 )
 
+            # Child issue: return child-specific response with parent context
+            if is_child and child_issue:
+                response = {
+                    "id": child_issue.get("id"),
+                    "is_child_issue": True,
+                    "master_issue_id": child_issue.get("master_issue_id"),
+                    "original_error": child_issue.get("original_error", ""),
+                    "original_context": child_issue.get("original_context", ""),
+                    "code_snippet": child_issue.get("code_snippet", ""),
+                    "model": child_issue.get("model", ""),
+                    "provider": child_issue.get("provider", ""),
+                    "language": child_issue.get("language", ""),
+                    "framework": child_issue.get("framework", ""),
+                    "submitted_at": child_issue.get("created_at", ""),
+                    "contribution_type": child_issue.get("contribution_type", ""),
+                    "validation_success": child_issue.get("validation_success"),
+                    "metadata": child_issue.get("metadata", {}),
+                }
+                # Add parent context if master was found
+                if master_issue:
+                    response["parent_canonical_title"] = (
+                        master_issue.get("canonical_error", "")[:100]
+                    )
+                    response["parent_root_cause_category"] = _normalize_category(
+                        master_issue.get("root_cause_category")
+                    )
+                return JSONResponse(content=response, status_code=200)
+
+            # Master issue: existing response format
+            issue = master_issue
+            master_id = issue.get("id")
+
             # Get child issue count
             child_issues = await query_records(
                 table="child_issues",
-                filters={"master_issue_id": issue_id},
+                filters={"master_issue_id": master_id},
                 limit=1000,
             )
 
             # Query fix_bundles for real confidence_score
             fix_bundles = await query_records(
                 table="fix_bundles",
-                filters={"master_issue_id": issue_id},
+                filters={"master_issue_id": master_id},
                 order_by="created_at",
                 ascending=False,
                 limit=1,

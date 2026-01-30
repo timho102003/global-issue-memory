@@ -214,6 +214,7 @@ def _sync_query(
     limit: int,
     order_by: Optional[str],
     ascending: bool,
+    gte_filters: Optional[Dict[str, Any]] = None,
 ) -> Any:
     """Synchronous query operation."""
     query = client.table(table).select(select)
@@ -221,6 +222,10 @@ def _sync_query(
     if filters:
         for column, value in filters.items():
             query = query.eq(column, value)
+
+    if gte_filters:
+        for column, value in gte_filters.items():
+            query = query.gte(column, value)
 
     if order_by:
         query = query.order(order_by, desc=not ascending)
@@ -237,6 +242,7 @@ async def query_records(
     limit: int = 100,
     order_by: Optional[str] = None,
     ascending: bool = False,
+    gte_filters: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
     """Query records from a table.
 
@@ -247,6 +253,7 @@ async def query_records(
         limit: Maximum records to return.
         order_by: Column to order by.
         ascending: Sort order.
+        gte_filters: Dictionary of column->value for >= comparisons.
 
     Returns:
         List[Dict[str, Any]]: List of records.
@@ -259,7 +266,7 @@ async def query_records(
         loop = asyncio.get_event_loop()
         result = await loop.run_in_executor(
             None,
-            partial(_sync_query, client, table, filters, select, limit, order_by, ascending),
+            partial(_sync_query, client, table, filters, select, limit, order_by, ascending, gte_filters),
         )
         record_count = len(result.data or [])
         logger.debug(f"Queried {record_count} records from {table}")

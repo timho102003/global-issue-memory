@@ -18,6 +18,7 @@ from src.exceptions import (
 from src.logging_config import get_logger, set_request_context
 from src.services.embedding_service import generate_combined_embedding
 from src.services.sanitization.pipeline import run_sanitization_pipeline, quick_sanitize
+from src.services.sanitization.code_synthesizer import run_code_synthesis
 from src.services.contribution_classifier import classify_contribution_type
 from src.services.environment_extractor import extract_environment_info
 from src.services.model_parser import parse_model_info
@@ -393,24 +394,67 @@ async def execute(arguments: Dict[str, Any]) -> List:
             result_id = issue_id
             linked_to = None
 
+        # Run code synthesis (non-blocking — failure does not block submission)
+        synthesis_result = None
+        try:
+            logger.debug("Running code synthesis pipeline")
+            synthesis_result = await run_code_synthesis(
+                error_message=sanitization_result.sanitized_error,
+                error_context=sanitization_result.sanitized_context,
+                code_snippet=sanitization_result.sanitized_mre,
+                root_cause=sanitized_root_cause,
+                fix_steps=sanitized_fix_steps,
+                code_changes=code_changes,
+            )
+            if synthesis_result.success:
+                logger.debug("Code synthesis completed successfully")
+            else:
+                logger.warning(f"Code synthesis partial failure: {synthesis_result.error}")
+        except Exception as e:
+            logger.warning(f"Code synthesis pipeline error (non-blocking): {e}")
+
         # Create fix bundle
         fix_bundle_id = str(uuid.uuid4())
         logger.debug(f"Creating fix bundle {fix_bundle_id}")
+
+        # Use synthesized results if available, otherwise fallback to sanitized values
+        final_fix_steps = (
+            synthesis_result.synthesized_fix_steps
+            if synthesis_result and synthesis_result.synthesized_fix_steps
+            else sanitized_fix_steps
+        )
+        final_code_fix = (
+            synthesis_result.fix_snippet
+            if synthesis_result and synthesis_result.fix_snippet
+            else None
+        )
+        final_patch_diff = (
+            synthesis_result.patch_diff
+            if synthesis_result and synthesis_result.patch_diff
+            else None
+        )
+
+        fix_bundle_data: Dict[str, Any] = {
+            "id": fix_bundle_id,
+            "master_issue_id": issue_id if not is_child_issue else parent_issue_id,
+            "summary": sanitized_fix_summary,
+            "fix_steps": final_fix_steps,
+            "code_changes": code_changes,
+            "environment_actions": environment_actions,
+            "verification_steps": verification_steps,
+            "confidence_score": sanitization_result.confidence_score,
+            "verification_count": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
+        }
+        if final_code_fix:
+            fix_bundle_data["code_fix"] = final_code_fix
+        if final_patch_diff:
+            fix_bundle_data["patch_diff"] = final_patch_diff
+
         await insert_record(
             table="fix_bundles",
-            data={
-                "id": fix_bundle_id,
-                "master_issue_id": issue_id if not is_child_issue else parent_issue_id,
-                "summary": sanitized_fix_summary,
-                "fix_steps": sanitized_fix_steps,
-                "code_changes": code_changes,
-                "environment_actions": environment_actions,
-                "verification_steps": verification_steps,
-                "confidence_score": sanitization_result.confidence_score,
-                "verification_count": 1,
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
-            },
+            data=fix_bundle_data,
         )
 
         # Log submission event (non-critical, don't fail on error)
