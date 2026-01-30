@@ -25,6 +25,7 @@ class Settings(BaseSettings):
         transport_mode: Server transport mode (stdio, http, or dual).
         http_host: Host to bind HTTP server to.
         http_port: Port for HTTP server.
+        frontend_url: Production frontend URL for CORS.
         default_daily_search_limit: Default daily limit for search operations.
     """
 
@@ -89,6 +90,12 @@ class Settings(BaseSettings):
         ge=1,
         le=65535,
         description="Port for HTTP server"
+    )
+
+    # CORS
+    frontend_url: Optional[str] = Field(
+        default=None,
+        description="Production frontend URL for CORS (e.g., https://your-app.vercel.app)"
     )
 
     # Rate limiting

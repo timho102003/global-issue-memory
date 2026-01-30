@@ -2195,6 +2195,27 @@ def _register_tools(mcp: FastMCP) -> None:
         return result[0].text if result else json.dumps({"error": "Report failed"})
 
 
+def _build_cors_origins(settings: "Settings") -> list[str]:
+    """Build the list of allowed CORS origins from settings.
+
+    Always includes localhost origins for development.
+    Appends the production frontend URL when configured.
+
+    Args:
+        settings: Application settings instance.
+
+    Returns:
+        List of allowed origin URLs.
+    """
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    if settings.frontend_url:
+        origins.append(settings.frontend_url)
+    return origins
+
+
 def run_server() -> None:
     """Run the MCP server based on configuration."""
     settings = get_settings()
@@ -2237,13 +2258,11 @@ def run_server() -> None:
     # Run with appropriate transport
     if args.transport == "http":
         # Configure CORS middleware for frontend access
+        cors_origins = _build_cors_origins(settings)
         cors_middleware = [
             Middleware(
                 CORSMiddleware,
-                allow_origins=[
-                    "http://localhost:3000",
-                    "http://127.0.0.1:3000",
-                ],
+                allow_origins=cors_origins,
                 allow_credentials=True,
                 allow_methods=["*"],
                 allow_headers=["*"],
