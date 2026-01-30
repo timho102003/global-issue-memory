@@ -1269,17 +1269,24 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 # Batch fetch best fix bundle confidence scores
                 all_fix_bundles = await query_records(
                     table="fix_bundles",
-                    select="master_issue_id,confidence_score",
+                    select="master_issue_id,confidence_score,summary,fix_steps",
                     order_by="confidence_score",
                     ascending=False,
                     limit=5000,
                 )
                 best_confidence: dict = {}
+                best_fix_preview: dict = {}
                 for fb in all_fix_bundles:
                     mid = fb.get("master_issue_id")
                     score = float(fb.get("confidence_score", 0) or 0)
                     if mid and mid not in best_confidence:
                         best_confidence[mid] = score
+                        fix_steps = fb.get("fix_steps") or []
+                        best_fix_preview[mid] = {
+                            "has_fix": True,
+                            "summary": fb.get("summary"),
+                            "first_step": fix_steps[0] if fix_steps else None,
+                        }
 
                 issues = []
                 for issue in all_issues:
@@ -1300,6 +1307,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "status": issue.get("status", "active"),
                         "created_at": issue.get("created_at", ""),
                         "updated_at": issue.get("updated_at", "") or issue.get("created_at", ""),
+                        "fix_preview": best_fix_preview.get(issue_id, {"has_fix": False}),
                     })
 
                 return JSONResponse(
@@ -1358,6 +1366,11 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "status": "active",
                     "created_at": "",
                     "updated_at": "",
+                    "fix_preview": {
+                        "has_fix": bool(r.get("fix_summary")),
+                        "summary": r.get("fix_summary"),
+                        "first_step": None,
+                    },
                 })
 
             return JSONResponse(
