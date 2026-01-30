@@ -26,6 +26,7 @@ export function useIssueSearch(params: IssueSearchParams) {
     queryKey: ["issues", "search", params],
     queryFn: () => searchIssues(params),
     staleTime: 30000, // 30 seconds
+    placeholderData: (prev) => prev,
   });
 }
 
