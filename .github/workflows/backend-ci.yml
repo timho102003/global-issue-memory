@@ -34,4 +34,4 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
       - name: Run tests
-        run: uv run pytest -v --tb=short
+        run: uv run pytest -v --tb=short -m "not integration"

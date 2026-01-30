@@ -175,6 +175,8 @@ class TestSubmitIssueTool:
                 "root_cause": "Test cause",
                 "fix_summary": "Test fix",
                 "fix_steps": ["Step 1", "Step 2"],
+                "provider": "anthropic",
+                "model": "claude-sonnet-4-20250514",
             })
             parsed = json.loads(result[0].text)
 

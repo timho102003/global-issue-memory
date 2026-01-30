@@ -395,8 +395,10 @@ class TestGIMOAuthProvider:
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        with patch("src.auth.oauth_provider.get_record", new_callable=AsyncMock) as mock_get:
+        with patch("src.auth.oauth_provider.get_record", new_callable=AsyncMock) as mock_get, \
+             patch("src.auth.oauth_provider.query_records", new_callable=AsyncMock) as mock_query:
             mock_get.return_value = auth_code_record
+            mock_query.return_value = []  # No tokens to revoke
 
             response, error = await oauth_provider.exchange_authorization_code(
                 code="used-code",
