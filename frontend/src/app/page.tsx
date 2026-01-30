@@ -35,7 +35,7 @@ export default function LandingPage() {
   };
 
   const openGitHub = () => {
-    window.open("https://github.com/your-org/gim", "_blank");
+    window.open("https://github.com/timho102003/global-issue-memory", "_blank");
   };
 
   return (

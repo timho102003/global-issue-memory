@@ -16,9 +16,9 @@ GIM follows Test-Driven Development (TDD) and emphasizes:
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/your-username/gim.git
-cd gim
-git remote add upstream https://github.com/timho102003/gim.git
+git clone https://github.com/your-username/global-issue-memory.git
+cd global-issue-memory
+git remote add upstream https://github.com/timho102003/global-issue-memory.git
 ```
 
 ### 2. Set Up Development Environment

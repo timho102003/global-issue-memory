@@ -15,7 +15,7 @@ This guide walks you through setting up a local development environment for Glob
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/timho102003/gim.git
+git clone https://github.com/timho102003/global-issue-memory.git
 cd gim
 ```
 
@@ -640,5 +640,5 @@ pip show gim
 
 ## Getting Help
 
-- Check existing [GitHub Issues](https://github.com/timho102003/gim/issues)
+- Check existing [GitHub Issues](https://github.com/timho102003/global-issue-memory/issues)
 - Open a new issue with the `question` label

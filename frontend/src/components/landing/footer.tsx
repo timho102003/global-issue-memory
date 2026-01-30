@@ -27,7 +27,7 @@ export function Footer() {
               Changelog
             </Link>
             <a
-              href="https://github.com/your-org/gim"
+              href="https://github.com/timho102003/global-issue-memory"
               target="_blank"
               rel="noopener noreferrer"
               className="text-[13px] text-text-secondary transition-colors hover:text-text-primary"
@@ -46,13 +46,13 @@ export function Footer() {
         {/* Bottom Row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[12px] text-text-muted">
-            © 2025 GIM. Open source under MIT License.
+            © 2025 GIM. PolyForm Noncommercial License 1.0.0.
           </p>
 
           {/* Social Links */}
           <div className="flex items-center gap-3">
             <a
-              href="https://github.com/your-org/gim"
+              href="https://github.com/timho102003/global-issue-memory"
               target="_blank"
               rel="noopener noreferrer"
               className="text-text-muted transition-colors hover:text-text-primary"
