@@ -60,12 +60,15 @@ class OAuthClientRegistrationRequest(BaseModel):
         Allows:
         - HTTP(S) schemes for web apps
         - Custom URI schemes for native apps (RFC 8252), e.g., cursor://, vscode://
+        - Localhost HTTP for development
 
         Rejects URIs with:
         - Fragment components (#)
         - Wildcard characters (*)
         - Missing scheme (://)
+        - Non-HTTP standard schemes (ftp://, file://, data://, javascript://)
         """
+        blocked_schemes = ("ftp://", "file://", "data:", "javascript:", "mailto:")
         for uri in v:
             # Must have a scheme
             if "://" not in uri:
@@ -74,6 +77,10 @@ class OAuthClientRegistrationRequest(BaseModel):
                 raise ValueError(f"Redirect URI must not contain fragments: {uri}")
             if "*" in uri:
                 raise ValueError(f"Redirect URI must not contain wildcards: {uri}")
+            # Block known dangerous/non-redirect schemes
+            lower_uri = uri.lower()
+            if any(lower_uri.startswith(s) for s in blocked_schemes):
+                raise ValueError(f"Redirect URI uses a blocked scheme: {uri}")
         return v
 
 
