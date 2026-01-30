@@ -2,7 +2,7 @@
 
 from typing import Literal, Optional
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -31,14 +31,14 @@ class Settings(BaseSettings):
 
     # Supabase
     supabase_url: str = Field(..., description="Supabase project URL")
-    supabase_key: str = Field(..., description="Supabase anon/service key")
+    supabase_key: SecretStr = Field(..., description="Supabase anon/service key")
 
     # Qdrant
     qdrant_url: str = Field(..., description="Qdrant Cloud cluster URL")
-    qdrant_api_key: str = Field(..., description="Qdrant API key")
+    qdrant_api_key: SecretStr = Field(..., description="Qdrant API key")
 
     # Google AI
-    google_api_key: str = Field(..., description="Google AI API key")
+    google_api_key: SecretStr = Field(..., description="Google AI API key")
     embedding_model: str = Field(
         default="gemini-embedding-001",
         description="Google embedding model name"
@@ -56,7 +56,7 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO", description="Logging level")
 
     # Authentication
-    jwt_secret_key: str = Field(
+    jwt_secret_key: SecretStr = Field(
         ...,
         min_length=32,
         description="Secret key for signing JWT tokens (min 32 characters)"
@@ -105,6 +105,12 @@ class Settings(BaseSettings):
         description="Default daily limit for search and get_fix_bundle operations"
     )
 
+    # Auth enforcement
+    require_auth_for_reads: bool = Field(
+        default=False,
+        description="Require authentication for read-only endpoints (gradual rollout)"
+    )
+
     # OAuth 2.1 settings
     oauth_issuer_url: str = Field(
         default="http://localhost:8000",
@@ -131,7 +137,7 @@ class Settings(BaseSettings):
 
     # Sanitization
     sanitization_confidence_threshold: float = Field(
-        default=0.95,
+        default=0.85,
         ge=0.0,
         le=1.0,
         description="Minimum confidence score for sanitization approval"

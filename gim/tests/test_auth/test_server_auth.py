@@ -8,6 +8,8 @@ from uuid import uuid4
 import pytest
 from starlette.testclient import TestClient
 
+from pydantic import SecretStr
+
 from src.auth.models import GIMIdentity, GIMIdentityStatus
 
 
@@ -18,7 +20,7 @@ class TestAuthEndpoints:
     def mock_settings(self):
         """Create mock settings."""
         settings = MagicMock()
-        settings.jwt_secret_key = "test-secret-key-minimum-32-characters-long"
+        settings.jwt_secret_key = SecretStr("test-secret-key-minimum-32-characters-long")
         settings.auth_issuer = "gim-mcp"
         settings.auth_audience = "gim-clients"
         settings.access_token_ttl_hours = 1
@@ -27,6 +29,7 @@ class TestAuthEndpoints:
         settings.http_port = 8000
         settings.default_daily_search_limit = 100
         settings.log_level = "INFO"
+        settings.require_auth_for_reads = False
         return settings
 
     @pytest.fixture

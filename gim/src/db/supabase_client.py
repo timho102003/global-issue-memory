@@ -37,7 +37,7 @@ def get_supabase_client() -> Client:
             if _client is None:
                 try:
                     settings = get_settings()
-                    _client = create_client(settings.supabase_url, settings.supabase_key)
+                    _client = create_client(settings.supabase_url, settings.supabase_key.get_secret_value())
                     logger.info("Supabase client initialized successfully")
                 except Exception as e:
                     logger.error(f"Failed to initialize Supabase client: {e}")

@@ -43,7 +43,7 @@ class JWTService:
             settings = get_settings()
         else:
             settings = None
-        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key
+        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key.get_secret_value()
         self._issuer = issuer if issuer is not None else settings.auth_issuer
         self._audience = audience if audience is not None else settings.auth_audience
         self._ttl_hours = ttl_hours if ttl_hours is not None else settings.access_token_ttl_hours

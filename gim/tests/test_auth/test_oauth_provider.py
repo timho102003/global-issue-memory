@@ -6,6 +6,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
 import pytest
+from pydantic import SecretStr
 
 from src.auth.oauth_models import (
     OAuthAuthorizationCode,
@@ -178,7 +179,7 @@ class TestGIMOAuthProvider:
         settings.oauth_authorization_code_ttl_seconds = 600
         settings.oauth_access_token_ttl_seconds = 3600
         settings.oauth_refresh_token_ttl_days = 30
-        settings.jwt_secret_key = "test-secret-key-minimum-32-characters-long"
+        settings.jwt_secret_key = SecretStr("test-secret-key-minimum-32-characters-long")
         settings.auth_issuer = "test-issuer"
         settings.auth_audience = "test-audience"
         return settings

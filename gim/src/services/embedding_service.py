@@ -27,7 +27,7 @@ def _get_client() -> genai.Client:
     global _client
     if _client is None:
         settings = get_settings()
-        _client = genai.Client(api_key=settings.google_api_key)
+        _client = genai.Client(api_key=settings.google_api_key.get_secret_value())
     return _client
 
 

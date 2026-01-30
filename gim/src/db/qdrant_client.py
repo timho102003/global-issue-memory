@@ -61,7 +61,7 @@ def get_qdrant_client() -> QdrantClient:
                     settings = get_settings()
                     _client = QdrantClient(
                         url=settings.qdrant_url,
-                        api_key=settings.qdrant_api_key,
+                        api_key=settings.qdrant_api_key.get_secret_value(),
                     )
                     logger.info("Qdrant client initialized successfully")
                 except Exception as e:

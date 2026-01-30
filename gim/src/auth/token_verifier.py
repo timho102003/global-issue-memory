@@ -4,6 +4,7 @@ This module provides a custom token verifier that integrates with FastMCP's
 authentication system using HS256 symmetric JWT tokens.
 """
 
+import hashlib
 import logging
 from typing import Optional
 from uuid import UUID
@@ -12,6 +13,7 @@ import jwt
 from jwt.exceptions import ExpiredSignatureError, InvalidTokenError
 
 from src.auth.models import JWTClaims
+from src.auth.token_blocklist import get_token_blocklist
 from src.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -41,7 +43,7 @@ class GIMTokenVerifier:
             settings = get_settings()
         else:
             settings = None
-        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key
+        self._secret_key = secret_key if secret_key is not None else settings.jwt_secret_key.get_secret_value()
         self._issuer = issuer if issuer is not None else settings.auth_issuer
         self._audience = audience if audience is not None else settings.auth_audience
         self._algorithm = "HS256"
@@ -49,12 +51,21 @@ class GIMTokenVerifier:
     def verify(self, token: str) -> Optional[JWTClaims]:
         """Verify a JWT token and return claims.
 
+        Checks the token blocklist first, then verifies the JWT signature
+        and claims.
+
         Args:
             token: The JWT token to verify.
 
         Returns:
             JWTClaims: The decoded claims if valid, None if invalid.
         """
+        # Check blocklist first (for revoked tokens)
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        if get_token_blocklist().is_blocked(token_hash):
+            logger.warning("Token is in blocklist (revoked)")
+            return None
+
         try:
             payload = jwt.decode(
                 token,
@@ -128,7 +139,7 @@ def create_fastmcp_jwt_verifier():
     # FastMCP JWTVerifier with symmetric key (HS256)
     # Note: For HS256, public_key is actually the shared secret
     return JWTVerifier(
-        public_key=settings.jwt_secret_key,
+        public_key=settings.jwt_secret_key.get_secret_value(),
         issuer=settings.auth_issuer,
         audience=settings.auth_audience,
         algorithm="HS256",
