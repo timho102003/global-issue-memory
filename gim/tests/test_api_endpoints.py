@@ -31,6 +31,7 @@ def _mock_settings():
     mock.access_token_ttl_hours = 24
     mock.default_daily_search_limit = 100
     mock.log_level = "INFO"
+    mock.require_auth_for_reads = False
     original = _config_module._settings
     _config_module._settings = mock
     yield mock
@@ -472,6 +473,11 @@ class TestConfirmFixEndpoint:
 
 class TestDashboardStatsEndpoint:
     """Tests for GET /dashboard/stats endpoint."""
+
+    def setup_method(self) -> None:
+        """Clear dashboard cache before each test."""
+        import src.server as server_module
+        server_module._dashboard_stats_cache.clear()
 
     @pytest.mark.asyncio
     async def test_dashboard_stats_returns_data(self):

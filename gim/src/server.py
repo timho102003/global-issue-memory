@@ -69,20 +69,24 @@ import argparse
 import json
 import logging
 import os
+import time as _time
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
-from typing import Any, AsyncGenerator, List, Optional
+from typing import Any, AsyncGenerator, List, Optional, Tuple
 from urllib.parse import urlencode
 from uuid import UUID
 
 from fastmcp import FastMCP
 from jinja2 import Environment, FileSystemLoader
 from starlette.middleware import Middleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
+from starlette.responses import Response as StarletteResponse
 
 from src.auth.gim_id_service import get_gim_id_service
+from src.auth.ip_rate_limiter import get_gim_id_rate_limiter
 from src.auth.jwt_service import get_jwt_service
 from src.auth.models import (
     ErrorResponse,
@@ -117,6 +121,40 @@ logger = logging.getLogger(__name__)
 # Template environment for Jinja2
 _template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 _jinja_env = Environment(loader=FileSystemLoader(_template_dir), autoescape=True)
+
+# Only include explicitly allowed fields from request arguments in submit-issue responses.
+# Prevents response injection via attacker-supplied keys overwriting response fields.
+_ALLOWED_SUBMIT_RESPONSE_FIELDS = frozenset({
+    "error_message", "root_cause", "fix_summary", "language", "framework",
+})
+
+# In-memory cache for dashboard stats to avoid repeated expensive queries.
+_dashboard_stats_cache: dict = {}
+_DASHBOARD_CACHE_TTL_SECONDS = 60
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Middleware to add security headers to all responses."""
+
+    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
+        """Add security headers to response.
+
+        Args:
+            request: The incoming request.
+            call_next: Next middleware/handler.
+
+        Returns:
+            Response with security headers added.
+        """
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Strict-Transport-Security"] = (
+            "max-age=31536000; includeSubDomains"
+        )
+        response.headers["Cache-Control"] = "no-store"
+        response.headers["X-XSS-Protection"] = "1; mode=block"
+        return response
 
 
 @asynccontextmanager
@@ -206,6 +244,20 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
             JSON with gim_id, created_at, description.
         """
         request_id = set_request_context()
+
+        # IP-based rate limiting for GIM ID creation
+        client_ip = request.client.host if request.client else "unknown"
+        limiter = get_gim_id_rate_limiter()
+        if not limiter.is_allowed(client_ip):
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="rate_limit_exceeded",
+                    error_description="Too many GIM ID creation requests. Try again later.",
+                ).model_dump(),
+                status_code=429,
+                headers={"Retry-After": "3600"},
+            )
+
         try:
             body = {}
             try:
@@ -480,8 +532,8 @@ def _register_oauth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with OAuth server metadata.
         """
-        # Build base URL from request to handle dynamic ports
-        base_url = str(request.base_url).rstrip("/")
+        # Use configured issuer URL for production (handles SSL termination)
+        base_url = get_settings().oauth_issuer_url.rstrip("/")
 
         metadata = {
             "issuer": base_url,
@@ -503,7 +555,8 @@ def _register_oauth_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with protected resource metadata.
         """
-        base_url = str(request.base_url).rstrip("/")
+        # Use configured issuer URL for production (handles SSL termination)
+        base_url = get_settings().oauth_issuer_url.rstrip("/")
 
         metadata = {
             "resource": base_url,
@@ -1037,6 +1090,82 @@ def _time_range_to_iso(time_range: str) -> Optional[str]:
     return cutoff.isoformat()
 
 
+async def _require_auth(request: Request) -> Tuple[Optional[Any], Optional[JSONResponse]]:
+    """Extract and verify Bearer token from request.
+
+    Args:
+        request: The incoming HTTP request.
+
+    Returns:
+        Tuple of (claims, None) on success, or (None, error_response) on failure.
+    """
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None, JSONResponse(
+            content=ErrorResponse(
+                error="unauthorized",
+                error_description="Authorization header required",
+            ).model_dump(),
+            status_code=401,
+        )
+
+    token = auth_header[7:]
+    verifier = GIMTokenVerifier()
+    claims = verifier.verify(token)
+    if claims is None:
+        return None, JSONResponse(
+            content=ErrorResponse(
+                error="unauthorized",
+                error_description="Invalid or expired token",
+            ).model_dump(),
+            status_code=401,
+        )
+
+    return claims, None
+
+
+class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Middleware to limit request body size.
+
+    Rejects requests whose Content-Length header exceeds max_body_size.
+    """
+
+    def __init__(self, app: Any, max_body_size: int = 1_048_576) -> None:
+        """Initialize middleware.
+
+        Args:
+            app: ASGI application.
+            max_body_size: Maximum body size in bytes (default 1MB).
+        """
+        super().__init__(app)
+        self.max_body_size = max_body_size
+
+    async def dispatch(self, request: Request, call_next: Any) -> StarletteResponse:
+        """Process request and enforce body size limit.
+
+        Args:
+            request: The incoming HTTP request.
+            call_next: The next middleware or endpoint handler.
+
+        Returns:
+            Response from the next handler, or 413 if body is too large.
+        """
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > self.max_body_size:
+                    return JSONResponse(
+                        content={
+                            "error": "payload_too_large",
+                            "error_description": "Request body too large",
+                        },
+                        status_code=413,
+                    )
+            except (ValueError, TypeError):
+                pass
+        return await call_next(request)
+
+
 def _register_api_endpoints(mcp: FastMCP) -> None:
     """Register REST API endpoints for frontend consumption.
 
@@ -1056,6 +1185,10 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with search results in IssueSearchResponse format.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
             body = await request.json()
             arguments = body.get("arguments", {})
@@ -1102,24 +1235,38 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     offset=offset,
                 )
 
+                # Batch fetch child counts to avoid N+1 queries
+                all_children = await query_records(
+                    table="child_issues",
+                    select="master_issue_id",
+                    limit=5000,
+                )
+                child_counts: dict = {}
+                for child in all_children:
+                    mid = child.get("master_issue_id")
+                    if mid:
+                        child_counts[mid] = child_counts.get(mid, 0) + 1
+
+                # Batch fetch best fix bundle confidence scores
+                all_fix_bundles = await query_records(
+                    table="fix_bundles",
+                    select="master_issue_id,confidence_score",
+                    order_by="confidence_score",
+                    ascending=False,
+                    limit=5000,
+                )
+                best_confidence: dict = {}
+                for fb in all_fix_bundles:
+                    mid = fb.get("master_issue_id")
+                    score = float(fb.get("confidence_score", 0) or 0)
+                    if mid and mid not in best_confidence:
+                        best_confidence[mid] = score
+
                 issues = []
                 for issue in all_issues:
                     issue_id = issue.get("id")
-                    # Get child issue count
-                    child_issues = await query_records(
-                        table="child_issues",
-                        filters={"master_issue_id": issue_id},
-                        limit=1000,
-                    )
-                    # Get confidence score from fix_bundles
-                    fix_bundles = await query_records(
-                        table="fix_bundles",
-                        filters={"master_issue_id": issue_id},
-                        order_by="confidence_score",
-                        ascending=False,
-                        limit=1,
-                    )
-                    confidence = float(fix_bundles[0].get("confidence_score", 0) or 0) if fix_bundles else 0.0
+                    confidence = best_confidence.get(issue_id, 0.0)
+                    child_count = child_counts.get(issue_id, 0)
                     canonical_error = issue.get("canonical_error") or ""
                     issues.append({
                         "id": issue_id,
@@ -1127,7 +1274,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "description": issue.get("root_cause", "") or "",
                         "root_cause_category": _normalize_category(issue.get("root_cause_category")),
                         "confidence_score": confidence,
-                        "child_issue_count": len(child_issues),
+                        "child_issue_count": child_count,
                         "environment_coverage": issue.get("environment_coverage", []) or [],
                         "model_provider": issue.get("model_provider") or "unknown",
                         "verification_count": issue.get("verification_count", 0) or 0,
@@ -1226,6 +1373,10 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with paginated issues list.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
             limit = int(request.query_params.get("limit", 50))
             offset = int(request.query_params.get("offset", 0))
@@ -1248,24 +1399,38 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 limit=limit,
             )
 
+            # Batch fetch child counts to avoid N+1 queries
+            all_children = await query_records(
+                table="child_issues",
+                select="master_issue_id",
+                limit=5000,
+            )
+            child_counts: dict = {}
+            for child in all_children:
+                mid = child.get("master_issue_id")
+                if mid:
+                    child_counts[mid] = child_counts.get(mid, 0) + 1
+
+            # Batch fetch best fix bundle confidence scores
+            all_fix_bundles = await query_records(
+                table="fix_bundles",
+                select="master_issue_id,confidence_score",
+                order_by="confidence_score",
+                ascending=False,
+                limit=5000,
+            )
+            best_confidence: dict = {}
+            for fb in all_fix_bundles:
+                mid = fb.get("master_issue_id")
+                score = float(fb.get("confidence_score", 0) or 0)
+                if mid and mid not in best_confidence:
+                    best_confidence[mid] = score
+
             issues = []
             for issue in all_issues:
                 issue_id = issue.get("id")
-                # Get child issue count
-                child_issues = await query_records(
-                    table="child_issues",
-                    filters={"master_issue_id": issue_id},
-                    limit=1000,
-                )
-                # Get confidence score from fix_bundles
-                fix_bundles = await query_records(
-                    table="fix_bundles",
-                    filters={"master_issue_id": issue_id},
-                    order_by="confidence_score",
-                    ascending=False,
-                    limit=1,
-                )
-                confidence = float(fix_bundles[0].get("confidence_score", 0) or 0) if fix_bundles else 0.0
+                confidence = best_confidence.get(issue_id, 0.0)
+                child_count = child_counts.get(issue_id, 0)
                 canonical_error = issue.get("canonical_error") or ""
                 issues.append({
                     "id": issue_id,
@@ -1273,7 +1438,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "description": issue.get("root_cause", "") or "",
                     "root_cause_category": _normalize_category(issue.get("root_cause_category")),
                     "confidence_score": confidence,
-                    "child_issue_count": len(child_issues),
+                    "child_issue_count": child_count,
                     "environment_coverage": issue.get("environment_coverage", []) or [],
                     "model_provider": issue.get("model_provider") or "unknown",
                     "verification_count": issue.get("verification_count", 0) or 0,
@@ -1315,7 +1480,17 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with children list and pagination.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
+            # IDOR audit logging
+            logger.info(
+                "Issue access: endpoint=%s, ip=%s",
+                request.url.path,
+                request.client.host if request.client else "unknown",
+            )
             issue_id = request.path_params.get("issue_id")
             if not issue_id:
                 return JSONResponse(
@@ -1409,7 +1584,17 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with issue details.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
+            # IDOR audit logging
+            logger.info(
+                "Issue access: endpoint=%s, ip=%s",
+                request.url.path,
+                request.client.host if request.client else "unknown",
+            )
             issue_id = request.path_params.get("issue_id")
             if not issue_id:
                 return JSONResponse(
@@ -1546,7 +1731,17 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with content array containing FixBundle.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
+            # IDOR audit logging
+            logger.info(
+                "Issue access: endpoint=%s, ip=%s",
+                request.url.path,
+                request.client.host if request.client else "unknown",
+            )
             body = await request.json()
             arguments = body.get("arguments", {})
             issue_id = arguments.get("issue_id")
@@ -1708,12 +1903,16 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=400,
                 )
 
+            safe_fields = {
+                k: v for k, v in arguments.items()
+                if k in _ALLOWED_SUBMIT_RESPONSE_FIELDS
+            }
             return JSONResponse(
                 content={
                     "id": tool_response.get("issue_id"),
                     "master_issue_id": tool_response.get("linked_to") or tool_response.get("issue_id"),
                     "created_at": "",
-                    **arguments,
+                    **safe_fields,
                 },
                 status_code=201,
             )
@@ -1810,11 +2009,23 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with DashboardStats format.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         try:
+            # Check in-memory cache first
+            cache_key = "dashboard_stats"
+            now = _time.time()
+            if cache_key in _dashboard_stats_cache:
+                cached_data, cached_at = _dashboard_stats_cache[cache_key]
+                if now - cached_at < _DASHBOARD_CACHE_TTL_SECONDS:
+                    return JSONResponse(content=cached_data, status_code=200)
+
             # Query master issues for stats
             all_issues = await query_records(
                 table="master_issues",
-                limit=10000,
+                limit=1000,
             )
 
             # Query usage events for recent activity
@@ -1865,10 +2076,11 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                 date_str = d.isoformat()
                 issues_over_time.append({"date": date_str, "count": issues_date_counts.get(date_str, 0)})
 
-            # Get unique contributors from child issues
+            # Count unique contributors efficiently
             child_issues = await query_records(
                 table="child_issues",
-                limit=10000,
+                select="provider",
+                limit=1000,
             )
             contributors = set()
             for child in child_issues:
@@ -1905,19 +2117,19 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "timestamp": event.get("created_at", ""),
                 })
 
-            return JSONResponse(
-                content={
-                    "total_issues": total_issues,
-                    "resolved_issues": resolved_issues,
-                    "unverified_issues": unverified_issues,
-                    "total_contributors": len(contributors),
-                    "issues_by_category": issues_by_category,
-                    "issues_by_provider": issues_by_provider,
-                    "issues_over_time": issues_over_time,
-                    "recent_activity": recent_activity,
-                },
-                status_code=200,
-            )
+            # Cache the result
+            response_data = {
+                "total_issues": total_issues,
+                "resolved_issues": resolved_issues,
+                "unverified_issues": unverified_issues,
+                "total_contributors": len(contributors),
+                "issues_by_category": issues_by_category,
+                "issues_by_provider": issues_by_provider,
+                "issues_over_time": issues_over_time,
+                "recent_activity": recent_activity,
+            }
+            _dashboard_stats_cache[cache_key] = (response_data, now)
+            return JSONResponse(content=response_data, status_code=200)
         except Exception as e:
             logger.error(f"Dashboard stats API error: {e}")
             return JSONResponse(
@@ -1938,6 +2150,10 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with profile stats format.
         """
+        if get_settings().require_auth_for_reads:
+            claims, error = await _require_auth(request)
+            if error:
+                return error
         gim_id = request.path_params.get("gim_id", "")
         if not gim_id:
             return JSONResponse(
@@ -1953,7 +2169,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             all_events = await query_records(
                 table="usage_events",
                 filters={"gim_id": gim_id},
-                limit=10000,
+                limit=1000,
             )
 
             # Count events by type
@@ -2264,9 +2480,11 @@ def run_server() -> None:
                 CORSMiddleware,
                 allow_origins=cors_origins,
                 allow_credentials=True,
-                allow_methods=["*"],
-                allow_headers=["*"],
-            )
+                allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+                allow_headers=["Authorization", "Content-Type", "Accept", "X-Request-ID"],
+            ),
+            Middleware(SecurityHeadersMiddleware),
+            Middleware(RequestSizeLimitMiddleware, max_body_size=1_048_576),
         ]
 
         mcp.run(

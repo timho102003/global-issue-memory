@@ -2,5 +2,10 @@
 __pycache__/
 *.pyc
 .env
+.env.*
+.git
+.github/
+*.md
+docs/
 tests/
 .pytest_cache/
