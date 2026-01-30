@@ -44,6 +44,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install Vercel CLI
         run: npm i -g vercel
+      - name: Create Vercel project link
+        run: |
+          mkdir -p .vercel
+          echo '{"orgId":"'"$VERCEL_ORG_ID"'","projectId":"'"$VERCEL_PROJECT_ID"'"}' > .vercel/project.json
       - name: Pull Vercel environment
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
       - name: Build with Vercel
