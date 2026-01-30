@@ -1,7 +1,7 @@
 """Tests for rate limiter service."""
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -161,6 +161,11 @@ class TestRateLimiter:
         identity_id = uuid4()
         reset_time = datetime.now(timezone.utc) + timedelta(hours=24)
 
+        mock_execute_result = MagicMock()
+        mock_execute_result.data = [{"daily_search_used": 51}]
+        mock_client = MagicMock()
+        mock_client.table.return_value.update.return_value.eq.return_value.eq.return_value.execute.return_value = mock_execute_result
+
         with (
             patch(
                 "src.auth.rate_limiter.get_record",
@@ -170,6 +175,10 @@ class TestRateLimiter:
                 "src.auth.rate_limiter.update_record",
                 new_callable=AsyncMock,
             ) as mock_update,
+            patch(
+                "src.auth.rate_limiter.get_supabase_client",
+                return_value=mock_client,
+            ),
         ):
             mock_get.return_value = {
                 "daily_search_limit": 100,

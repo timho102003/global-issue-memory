@@ -117,10 +117,10 @@ class TestGetFixBundleTool:
     @pytest.mark.asyncio
     async def test_issue_not_found(self) -> None:
         """Test when issue is not found."""
-        with patch("src.tools.gim_get_fix_bundle.get_record") as mock_get:
-            mock_get.return_value = None
+        with patch("src.tools.gim_get_fix_bundle.resolve_issue_id") as mock_resolve:
+            mock_resolve.return_value = (None, None, False)
 
-            result = await get_fix_execute({"issue_id": "nonexistent"})
+            result = await get_fix_execute({"issue_id": "00000000-0000-0000-0000-000000000000"})
             parsed = json.loads(result[0].text)
             assert "error" in parsed
             assert "not found" in parsed["error"]
@@ -148,7 +148,11 @@ class TestSubmitIssueTool:
              patch("src.tools.gim_submit_issue.generate_combined_embedding") as mock_embed, \
              patch("src.tools.gim_submit_issue.search_similar_issues") as mock_search, \
              patch("src.tools.gim_submit_issue.insert_record") as mock_insert, \
-             patch("src.tools.gim_submit_issue.upsert_issue_vectors") as mock_upsert:
+             patch("src.tools.gim_submit_issue.upsert_issue_vectors") as mock_upsert, \
+             patch("src.tools.gim_submit_issue.get_settings") as mock_settings:
+
+            mock_settings.return_value.similarity_merge_threshold = 0.85
+            mock_settings.return_value.sanitization_confidence_threshold = 0.95
 
             # Mock sanitization result
             mock_result = AsyncMock()
@@ -210,17 +214,20 @@ class TestConfirmFixTool:
         """Test successful fix confirmation."""
         with patch("src.tools.gim_confirm_fix.get_record") as mock_get, \
              patch("src.tools.gim_confirm_fix.update_record") as mock_update, \
-             patch("src.tools.gim_confirm_fix.insert_record") as mock_insert:
+             patch("src.tools.gim_confirm_fix.insert_record") as mock_insert, \
+             patch("src.tools.gim_confirm_fix.query_records") as mock_query:
 
+            test_uuid = "00000000-0000-0000-0000-000000000001"
             mock_get.return_value = {
-                "id": "test-id",
+                "id": test_uuid,
                 "verification_count": 1,
             }
             mock_update.return_value = {}
             mock_insert.return_value = {}
+            mock_query.return_value = []  # No fix bundles
 
             result = await confirm_execute({
-                "issue_id": "test-id",
+                "issue_id": test_uuid,
                 "fix_worked": True,
             })
             parsed = json.loads(result[0].text)

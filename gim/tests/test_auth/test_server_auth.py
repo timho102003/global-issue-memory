@@ -178,6 +178,10 @@ class TestAuthEndpoints:
         mock_identity,
     ):
         """Test successful GIM ID revocation."""
+        mock_claims = MagicMock()
+        mock_claims.sub = str(mock_identity.gim_id)
+        mock_claims.gim_identity_id = str(mock_identity.id)
+
         with (
             patch("src.server.get_settings", return_value=mock_settings),
             patch("src.auth.jwt_service.get_settings", return_value=mock_settings),
@@ -187,6 +191,7 @@ class TestAuthEndpoints:
                 "src.server.create_fastmcp_jwt_verifier",
                 return_value=None,
             ),
+            patch("src.server.GIMTokenVerifier") as MockVerifier,
             patch(
                 "src.auth.gim_id_service.get_record",
                 new_callable=AsyncMock,
@@ -196,6 +201,7 @@ class TestAuthEndpoints:
                 new_callable=AsyncMock,
             ),
         ):
+            MockVerifier.return_value.verify.return_value = mock_claims
             mock_get.return_value = {
                 "id": str(mock_identity.id),
                 "gim_id": str(mock_identity.gim_id),
@@ -212,6 +218,7 @@ class TestAuthEndpoints:
                 response = client.post(
                     "/auth/revoke",
                     json={"gim_id": str(mock_identity.gim_id)},
+                    headers={"Authorization": "Bearer test-token"},
                 )
 
                 assert response.status_code == 200

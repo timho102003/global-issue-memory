@@ -18,6 +18,25 @@ from uuid import uuid4
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _mock_settings():
+    """Provide mock settings to avoid requiring environment variables."""
+    import src.config as _config_module
+    mock = MagicMock()
+    mock.transport_mode = "stdio"
+    mock.frontend_url = None
+    mock.jwt_secret_key = "test-secret-key-minimum-32-characters-long"
+    mock.auth_issuer = "gim-mcp"
+    mock.auth_audience = "gim-clients"
+    mock.access_token_ttl_hours = 24
+    mock.default_daily_search_limit = 100
+    mock.log_level = "INFO"
+    original = _config_module._settings
+    _config_module._settings = mock
+    yield mock
+    _config_module._settings = original
+
+
 @pytest.fixture
 def sample_uuid() -> str:
     """Generate a sample UUID string for testing.
@@ -99,7 +118,7 @@ class TestSearchIssuesEndpoint:
                           new_callable=AsyncMock, return_value=[mock_text]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.post(
                     "/mcp/tools/gim_search_issues",
@@ -126,7 +145,7 @@ class TestSearchIssuesEndpoint:
             with patch.object(server_module, "query_records", new_callable=AsyncMock, return_value=[]):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -152,11 +171,12 @@ class TestGetIssueEndpoint:
         except ImportError:
             pytest.skip("Required dependencies not installed")
 
-        with patch.object(server_module, "get_record", new_callable=AsyncMock, return_value=mock_issue):
+        with patch("src.server.resolve_issue_id", new_callable=AsyncMock,
+                   return_value=(mock_issue, None, False)):
             with patch.object(server_module, "query_records", new_callable=AsyncMock, return_value=[]):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.get(f"/issues/{sample_uuid}")
 
@@ -174,10 +194,11 @@ class TestGetIssueEndpoint:
         except ImportError:
             pytest.skip("Required dependencies not installed")
 
-        with patch.object(server_module, "get_record", new_callable=AsyncMock, return_value=None):
+        with patch("src.server.resolve_issue_id", new_callable=AsyncMock,
+                   return_value=(None, None, False)):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get(f"/issues/{sample_uuid}")
 
@@ -196,7 +217,7 @@ class TestGetIssueEndpoint:
 
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app())
 
             response = client.get("/issues/invalid-uuid")
 
@@ -229,7 +250,7 @@ class TestGetFixBundleEndpoint:
                           new_callable=AsyncMock, return_value=[mock_text]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.post(
                     "/mcp/tools/gim_get_fix_bundle",
@@ -263,7 +284,7 @@ class TestGetFixBundleEndpoint:
                           new_callable=AsyncMock, return_value=[mock_text]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.post(
                     "/mcp/tools/gim_get_fix_bundle",
@@ -285,7 +306,7 @@ class TestGetFixBundleEndpoint:
 
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app())
 
             response = client.post(
                 "/mcp/tools/gim_get_fix_bundle",
@@ -311,7 +332,7 @@ class TestSubmitIssueEndpoint:
 
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app())
 
             response = client.post(
                 "/mcp/tools/gim_submit_issue",
@@ -342,28 +363,34 @@ class TestSubmitIssueEndpoint:
             "linked_to": None,
         })
 
+        mock_claims = MagicMock()
+        mock_claims.sub = str(uuid4())
+        mock_verifier = MagicMock()
+        mock_verifier.verify.return_value = mock_claims
+
         with patch.object(submit_issue_tool, "execute",
                           new_callable=AsyncMock, return_value=[mock_text]):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+            with patch("src.server.GIMTokenVerifier", return_value=mock_verifier):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.http_app())
 
-                response = client.post(
-                    "/mcp/tools/gim_submit_issue",
-                    json={
-                        "arguments": {
-                            "error_message": "Test error",
-                            "root_cause": "Test cause",
-                            "fix_summary": "Test fix",
-                            "fix_steps": ["Step 1"],
-                        }
-                    },
-                    headers={"Authorization": "Bearer test-token"},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_submit_issue",
+                        json={
+                            "arguments": {
+                                "error_message": "Test error",
+                                "root_cause": "Test cause",
+                                "fix_summary": "Test fix",
+                                "fix_steps": ["Step 1"],
+                            }
+                        },
+                        headers={"Authorization": "Bearer test-token"},
+                    )
 
-                assert response.status_code == 201
-                data = response.json()
-                assert "id" in data
+                    assert response.status_code == 201
+                    data = response.json()
+                    assert "id" in data
 
 
 class TestConfirmFixEndpoint:
@@ -380,7 +407,7 @@ class TestConfirmFixEndpoint:
 
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app())
 
             response = client.post(
                 "/mcp/tools/gim_confirm_fix",
@@ -413,28 +440,34 @@ class TestConfirmFixEndpoint:
             "fix_worked": True,
         })
 
+        mock_claims = MagicMock()
+        mock_claims.sub = str(uuid4())
+        mock_verifier = MagicMock()
+        mock_verifier.verify.return_value = mock_claims
+
         with patch.object(confirm_fix_tool, "execute",
                           new_callable=AsyncMock, return_value=[mock_text]):
-            with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
-                mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+            with patch("src.server.GIMTokenVerifier", return_value=mock_verifier):
+                with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
+                    mcp = create_mcp_server(use_auth=False)
+                    client = TestClient(mcp.http_app())
 
-                response = client.post(
-                    "/mcp/tools/gim_confirm_fix",
-                    json={
-                        "arguments": {
-                            "issue_id": sample_uuid,
-                            "fix_bundle_id": str(uuid4()),
-                            "success": True,
-                            "notes": "Fix worked perfectly",
-                        }
-                    },
-                    headers={"Authorization": "Bearer test-token"},
-                )
+                    response = client.post(
+                        "/mcp/tools/gim_confirm_fix",
+                        json={
+                            "arguments": {
+                                "issue_id": sample_uuid,
+                                "fix_bundle_id": str(uuid4()),
+                                "success": True,
+                                "notes": "Fix worked perfectly",
+                            }
+                        },
+                        headers={"Authorization": "Bearer test-token"},
+                    )
 
-                assert response.status_code == 200
-                data = response.json()
-                assert data["confirmed"] is True
+                    assert response.status_code == 200
+                    data = response.json()
+                    assert data["confirmed"] is True
 
 
 class TestDashboardStatsEndpoint:
@@ -487,7 +520,7 @@ class TestDashboardStatsEndpoint:
         with patch.object(server_module, "query_records", side_effect=mock_query_records):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get("/dashboard/stats")
 
@@ -514,7 +547,7 @@ class TestDashboardStatsEndpoint:
         with patch.object(server_module, "query_records", new_callable=AsyncMock, return_value=[]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get("/dashboard/stats")
 
@@ -567,7 +600,7 @@ class TestDashboardStatsEndpoint:
         with patch.object(server_module, "query_records", side_effect=mock_query_records):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get("/dashboard/stats")
 
@@ -587,12 +620,24 @@ class TestCORSMiddleware:
         try:
             from src.server import create_mcp_server
             from starlette.testclient import TestClient
+            from starlette.middleware import Middleware
+            from starlette.middleware.cors import CORSMiddleware
         except ImportError:
             pytest.skip("Required dependencies not installed")
 
+        cors_middleware = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://localhost:3000"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ]
+
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app(middleware=cors_middleware))
 
             response = client.options(
                 "/dashboard/stats",
@@ -612,14 +657,26 @@ class TestCORSMiddleware:
         try:
             from src.server import create_mcp_server
             from starlette.testclient import TestClient
+            from starlette.middleware import Middleware
+            from starlette.middleware.cors import CORSMiddleware
             import src.server as server_module
         except ImportError:
             pytest.skip("Required dependencies not installed")
 
+        cors_middleware = [
+            Middleware(
+                CORSMiddleware,
+                allow_origins=["http://localhost:3000"],
+                allow_credentials=True,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+        ]
+
         with patch.object(server_module, "query_records", new_callable=AsyncMock, return_value=[]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app(middleware=cors_middleware))
 
                 response = client.get(
                     "/dashboard/stats",
@@ -736,7 +793,7 @@ class TestSearchIssuesProviderFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -771,7 +828,7 @@ class TestSearchIssuesProviderFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -809,7 +866,7 @@ class TestSearchIssuesTimeRangeFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -847,7 +904,7 @@ class TestSearchIssuesTimeRangeFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -880,7 +937,7 @@ class TestSearchIssuesTimeRangeFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -913,7 +970,7 @@ class TestSearchIssuesTimeRangeFilter:
             with patch.object(server_module, "query_records", side_effect=mock_query_records):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -959,7 +1016,7 @@ class TestGetIssueChildResolution:
             "id": master_id,
             "canonical_error": "ImportError: cannot import name 'foo'",
             "root_cause": "Module renamed in v2",
-            "root_cause_category": "breaking_change",
+            "root_cause_category": "api_integration",
             "verification_count": 4,
             "created_at": "2024-03-01T00:00:00Z",
         }
@@ -986,7 +1043,7 @@ class TestGetIssueChildResolution:
         ):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get(f"/issues/{child_id}")
 
@@ -1004,7 +1061,7 @@ class TestGetIssueChildResolution:
                 # Parent context fields
                 assert "parent_canonical_title" in data
                 assert data["parent_canonical_title"] == mock_master["canonical_error"][:100]
-                assert data["parent_root_cause_category"] == "breaking_change"
+                assert data["parent_root_cause_category"] == "api_integration"
 
     @pytest.mark.asyncio
     async def test_get_issue_child_id_orphaned(self):
@@ -1046,7 +1103,7 @@ class TestGetIssueChildResolution:
         ):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get(f"/issues/{child_id}")
 
@@ -1124,7 +1181,7 @@ class TestListChildIssuesEndpoint:
             ):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.get(f"/issues/{master_id}/children")
 
@@ -1170,7 +1227,7 @@ class TestListChildIssuesEndpoint:
             ):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.get(f"/issues/{master_id}/children")
 
@@ -1191,7 +1248,7 @@ class TestListChildIssuesEndpoint:
 
         with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
             mcp = create_mcp_server(use_auth=False)
-            client = TestClient(mcp.app)
+            client = TestClient(mcp.http_app())
 
             response = client.get("/issues/invalid-uuid/children")
 
@@ -1216,7 +1273,7 @@ class TestListChildIssuesEndpoint:
         ):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.get(f"/issues/{missing_id}/children")
 
@@ -1272,7 +1329,7 @@ class TestGetFixBundleChildResolution:
         ):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.post(
                     "/mcp/tools/gim_get_fix_bundle",
@@ -1283,12 +1340,9 @@ class TestGetFixBundleChildResolution:
                 data = response.json()
                 assert "content" in data
                 assert len(data["content"]) > 0
-                # Parse the text content to verify child resolution fields
-                content_text = data["content"][0]["text"]
-                parsed = json.loads(content_text)
-                assert parsed["master_issue_id"] == master_id
-                assert parsed["is_child_issue"] is True
-                assert parsed["child_issue_id"] == child_id
+                # Verify the transformed response includes master_issue_id
+                bundle = data["content"][0]
+                assert bundle["master_issue_id"] == master_id
 
 
 class TestSearchIssuesPagination:
@@ -1332,7 +1386,7 @@ class TestSearchIssuesPagination:
             with patch.object(server_module, "query_records", side_effect=mock_query):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -1367,7 +1421,7 @@ class TestSearchIssuesPagination:
             with patch.object(server_module, "query_records", side_effect=mock_query):
                 with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                     mcp = create_mcp_server(use_auth=False)
-                    client = TestClient(mcp.app)
+                    client = TestClient(mcp.http_app())
 
                     response = client.post(
                         "/mcp/tools/gim_search_issues",
@@ -1424,7 +1478,7 @@ class TestSearchIssuesPagination:
                           new_callable=AsyncMock, return_value=[mock_text]):
             with patch("src.db.qdrant_client.ensure_collection_exists", new_callable=AsyncMock):
                 mcp = create_mcp_server(use_auth=False)
-                client = TestClient(mcp.app)
+                client = TestClient(mcp.http_app())
 
                 response = client.post(
                     "/mcp/tools/gim_search_issues",

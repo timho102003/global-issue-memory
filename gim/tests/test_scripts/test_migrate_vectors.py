@@ -110,7 +110,11 @@ class TestMigrate:
              patch("scripts.migrate_vectors.drop_collection") as mock_drop, \
              patch("scripts.migrate_vectors.ensure_collection_exists") as mock_ensure, \
              patch("scripts.migrate_vectors.generate_combined_embedding") as mock_embed, \
-             patch("scripts.migrate_vectors.upsert_issue_vectors") as mock_upsert:
+             patch("scripts.migrate_vectors.upsert_issue_vectors") as mock_upsert, \
+             patch("scripts.migrate_vectors.get_settings") as mock_settings:
+
+            mock_settings.return_value.embedding_model = "gemini-embedding-001"
+            mock_settings.return_value.embedding_dimensions = 3072
 
             await migrate(dry_run=True)
 
