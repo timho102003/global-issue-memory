@@ -28,6 +28,32 @@ from src.tools.base import ToolDefinition, create_text_response, create_error_re
 logger = get_logger("tools.submit_issue")
 
 
+def _sanitize_structured_data(data: Any) -> Any:
+    """Recursively sanitize structured data (lists, dicts, strings).
+
+    Applies pattern-based sanitization to all string values in nested
+    data structures before database storage.
+
+    Args:
+        data: The data to sanitize (can be str, list, dict, or primitive).
+
+    Returns:
+        The sanitized data with the same structure.
+    """
+    if isinstance(data, str):
+        from src.services.sanitization.secret_detector import detect_secrets
+        from src.services.sanitization.pii_scrubber import scrub_pii
+
+        secret_result = detect_secrets(data)
+        pii_result = scrub_pii(secret_result.sanitized_text)
+        return pii_result.sanitized_text
+    elif isinstance(data, list):
+        return [_sanitize_structured_data(item) for item in data]
+    elif isinstance(data, dict):
+        return {k: _sanitize_structured_data(v) for k, v in data.items()}
+    return data
+
+
 submit_issue_tool = ToolDefinition(
     name="gim_submit_issue",
     description="""Submit a RESOLVED issue to GIM to help other AI assistants.
@@ -60,11 +86,16 @@ WHAT TO INCLUDE:
     - root_cause: WHY the error occurred (not just WHAT)
     - fix_summary: Brief description of the solution
     - fix_steps: Step-by-step instructions
+    - provider: MUST include your model provider (e.g., 'anthropic', 'openai')
+    - model: MUST include your model name (e.g., 'claude-sonnet-4-20250514')
 
   Highly Recommended:
     - code_changes: Specific file modifications
     - verification_steps: How to verify it works
     - language, framework: Context for matching
+
+IMPORTANT: You MUST always provide 'provider' and 'model' fields.
+These identify which AI resolved the issue and are critical for analytics.
 
 DEDUPLICATION:
   - If similar issue exists (>90% match): Creates child issue linked to master
@@ -141,11 +172,11 @@ file paths, and domain-specific names are automatically removed.""",
             },
             "model": {
                 "type": "string",
-                "description": "AI model that resolved this issue",
+                "description": "REQUIRED: AI model that resolved this issue (e.g., 'claude-sonnet-4-20250514', 'gpt-4o'). You MUST provide your own model name.",
             },
             "provider": {
                 "type": "string",
-                "description": "Model provider (e.g., 'anthropic', 'openai')",
+                "description": "REQUIRED: Model provider (e.g., 'anthropic', 'openai'). You MUST identify your provider.",
             },
             "language": {
                 "type": "string",
@@ -182,7 +213,7 @@ file paths, and domain-specific names are automatically removed.""",
                 "description": "Notes about the validation process",
             },
         },
-        "required": ["error_message", "root_cause", "fix_summary", "fix_steps"],
+        "required": ["error_message", "root_cause", "fix_summary", "fix_steps", "provider", "model"],
     },
     annotations={
         "readOnlyHint": False,
@@ -238,6 +269,10 @@ async def execute(arguments: Dict[str, Any]) -> List:
             raise ValidationError("fix_summary is required", field="fix_summary")
         if not fix_steps:
             raise ValidationError("fix_steps is required", field="fix_steps")
+        if not provider:
+            raise ValidationError("provider is required (e.g., 'anthropic', 'openai')", field="provider")
+        if not model:
+            raise ValidationError("model is required (e.g., 'claude-sonnet-4-20250514')", field="model")
 
         # Run sanitization pipeline
         logger.debug("Running sanitization pipeline")
@@ -256,10 +291,23 @@ async def execute(arguments: Dict[str, Any]) -> List:
                 original_error=e,
             )
 
+        # Check if sanitization result indicates low confidence
+        if not sanitization_result.success:
+            raise SanitizationError(
+                "Sanitization confidence too low to safely store this submission. "
+                f"Confidence: {sanitization_result.confidence_score:.2f}",
+                stage="confidence_check",
+            )
+
         # Also sanitize root cause and fix summary
         sanitized_root_cause, _ = quick_sanitize(root_cause)
         sanitized_fix_summary, _ = quick_sanitize(fix_summary)
         sanitized_fix_steps = [quick_sanitize(step)[0] for step in fix_steps]
+
+        # Sanitize structured data fields before DB write
+        code_changes = _sanitize_structured_data(code_changes)
+        environment_actions = _sanitize_structured_data(environment_actions)
+        verification_steps = _sanitize_structured_data(verification_steps)
 
         # Generate combined embedding for similarity search
         logger.debug("Generating combined embedding")
