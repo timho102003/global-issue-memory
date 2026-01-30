@@ -5,18 +5,21 @@ interface TrustSignalsProps {
   verificationCount: number;
   successRate: number;
   lastConfirmedAt?: string;
+  variant?: "card" | "inline";
 }
 
 /**
  * Trust signals component showing verification stats.
+ * Use variant="inline" for compact rendering without card wrapper.
  */
 export function TrustSignals({
   verificationCount,
   successRate,
   lastConfirmedAt,
+  variant = "card",
 }: TrustSignalsProps) {
-  return (
-    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border-light/80 bg-white px-5 py-4 shadow-[var(--shadow-card)] sm:gap-6 sm:px-6">
+  const content = (
+    <>
       <div className="flex items-center gap-2">
         <Users className="h-4 w-4 text-text-muted" />
         <span className="text-[13px] text-text-primary">
@@ -43,6 +46,20 @@ export function TrustSignals({
           </div>
         </>
       )}
+    </>
+  );
+
+  if (variant === "inline") {
+    return (
+      <div className="flex flex-wrap items-center gap-4 sm:gap-6">
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-border-light/80 bg-white px-5 py-4 shadow-[var(--shadow-card)] sm:gap-6 sm:px-6">
+      {content}
     </div>
   );
 }

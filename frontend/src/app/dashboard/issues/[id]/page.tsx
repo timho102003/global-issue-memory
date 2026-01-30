@@ -2,7 +2,6 @@
 
 import { use } from "react";
 
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
@@ -12,15 +11,25 @@ import {
   BreadcrumbSeparator,
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
+import { Users } from "lucide-react";
 import { ChildIssuesList } from "@/components/issue/child-issues-list";
 import { FixBundleCard } from "@/components/issue/fix-bundle-card";
 import { TrustSignals } from "@/components/issue/trust-signals";
 import { useIssue, useFixBundle } from "@/lib/hooks/use-issues";
 import { CATEGORY_DISPLAY } from "@/types";
 import type { RootCauseCategory } from "@/types";
+import type { BadgeProps } from "@/components/ui/badge";
+
+const CATEGORY_TO_BADGE: Record<RootCauseCategory, BadgeProps["category"]> = {
+  environment: "environment",
+  model_behavior: "model",
+  api_integration: "api",
+  code_generation: "codegen",
+  framework_specific: "framework",
+};
 
 /**
- * Issue Detail page matching GIM.pen design (qnZGX).
+ * Issue Detail page — full-width stacked layout with compact header.
  */
 export default function IssueDetailPage({
   params,
@@ -58,91 +67,119 @@ export default function IssueDetailPage({
         </BreadcrumbList>
       </Breadcrumb>
 
-      {/* Content Row */}
-      <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
-        {/* Left Column */}
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          {/* Issue Card */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-start justify-between gap-4">
-                <CardTitle className="text-lg leading-snug sm:text-xl">
-                  {issue.canonical_title}
-                </CardTitle>
-                <Badge
-                  category={issue.root_cause_category.replace("_", "-") as "environment" | "model" | "api" | "codegen" | "framework"}
-                >
-                  {categoryInfo.label}
-                </Badge>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm leading-relaxed text-text-secondary">
-                {issue.description}
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Metadata */}
-          {(issue.model_provider || issue.language || issue.framework) && (
-            <Card>
-              <CardContent className="flex flex-wrap gap-x-6 gap-y-2 pt-5">
-                {issue.model_provider && issue.model_provider !== "unknown" && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-text-muted">Provider:</span>
-                    <span className="font-medium text-text-primary">
-                      {issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)}
-                    </span>
-                  </div>
-                )}
-                {issue.language && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-text-muted">Language:</span>
-                    <span className="font-medium text-text-primary">
-                      {issue.language.charAt(0).toUpperCase() + issue.language.slice(1)}
-                    </span>
-                  </div>
-                )}
-                {issue.framework && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <span className="text-text-muted">Framework:</span>
-                    <span className="font-medium text-text-primary">
-                      {issue.framework.charAt(0).toUpperCase() + issue.framework.slice(1)}
-                    </span>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Trust Signals */}
-          <TrustSignals
-            verificationCount={issue.verification_count}
-            successRate={issue.confidence_score}
-            lastConfirmedAt={issue.last_confirmed_at}
-          />
-
-          {/* Child Issues (Contributions) */}
-          {issue.child_issue_count > 0 && (
-            <ChildIssuesList masterIssueId={id} />
-          )}
+      {/* Compact Issue Header Card */}
+      <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+        {/* Row 1: Badges + Confidence */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge
+              category={CATEGORY_TO_BADGE[issue.root_cause_category]}
+            >
+              {categoryInfo.label}
+            </Badge>
+            {issue.child_issue_count > 0 && (
+              <Badge variant="secondary">
+                <Users className="mr-1 h-3 w-3" />
+                {issue.child_issue_count} contribution{issue.child_issue_count !== 1 ? "s" : ""}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <div
+              role="meter"
+              aria-label="Confidence score"
+              aria-valuenow={Math.round(issue.confidence_score * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="h-2 w-20 overflow-hidden rounded-full bg-bg-tertiary"
+            >
+              <div
+                className="h-full rounded-full bg-accent-warm transition-all duration-200"
+                style={{ width: `${Math.round(issue.confidence_score * 100)}%` }}
+                aria-hidden="true"
+              />
+            </div>
+            <span className="text-sm font-medium text-text-primary">
+              {Math.round(issue.confidence_score * 100)}%
+            </span>
+          </div>
         </div>
 
-        {/* Right Column - Fix Bundle */}
-        <div className="w-full lg:w-[380px]">
-          {fixBundleLoading ? (
-            <FixBundleSkeleton />
-          ) : fixBundle ? (
-            <FixBundleCard fixBundle={fixBundle} />
-          ) : null}
-        </div>
+        {/* Row 2: Title */}
+        <h1 className="text-xl font-semibold leading-snug text-text-primary sm:text-2xl">
+          {issue.canonical_title}
+        </h1>
+
+        {/* Row 3: Description */}
+        <p className="text-sm leading-relaxed text-text-secondary">
+          {issue.description}
+        </p>
+
+        {/* Row 4: Metadata pills + Trust Signals */}
+        {(issue.model_provider || issue.language || issue.framework || issue.verification_count > 0) && (
+          <div className="flex flex-wrap items-center gap-3 border-t border-border-light/60 pt-4">
+            {/* Metadata pills */}
+            {issue.model_provider && issue.model_provider !== "unknown" && (
+              <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary">
+                {issue.model_provider.charAt(0).toUpperCase() + issue.model_provider.slice(1)}
+              </span>
+            )}
+            {issue.language && (
+              <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary">
+                {issue.language.charAt(0).toUpperCase() + issue.language.slice(1)}
+              </span>
+            )}
+            {issue.framework && (
+              <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary">
+                {issue.framework.charAt(0).toUpperCase() + issue.framework.slice(1)}
+              </span>
+            )}
+
+            {/* Divider before trust signals */}
+            {(issue.model_provider || issue.language || issue.framework) && (
+              <div className="hidden h-4 w-px bg-border-light sm:block" />
+            )}
+
+            {/* Inline trust signals */}
+            <TrustSignals
+              verificationCount={issue.verification_count}
+              successRate={issue.confidence_score}
+              lastConfirmedAt={issue.last_confirmed_at}
+              variant="inline"
+            />
+          </div>
+        )}
       </div>
+
+      {/* Fix Bundle — full width */}
+      {fixBundleLoading ? (
+        <FixBundleSkeleton />
+      ) : fixBundle ? (
+        <FixBundleCard fixBundle={fixBundle} />
+      ) : null}
+
+      {/* Community + Child Issues */}
+      {issue.child_issue_count > 0 && (
+        <>
+          <div className="flex items-center gap-2 rounded-xl border border-cat-environment/20 bg-cat-environment/5 px-4 py-3">
+            <Users className="h-4 w-4 text-cat-environment" />
+            <p className="text-sm text-text-secondary">
+              Community has reported{" "}
+              <span className="font-medium text-text-primary">
+                {issue.child_issue_count}
+              </span>{" "}
+              similar experience{issue.child_issue_count !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <ChildIssuesList masterIssueId={id} />
+        </>
+      )}
     </main>
   );
 }
 
 /**
- * Full-page skeleton for issue detail loading state.
+ * Full-page skeleton for issue detail loading state — stacked layout.
  */
 function IssueDetailSkeleton() {
   return (
@@ -156,63 +193,79 @@ function IssueDetailSkeleton() {
         <div className="h-4 w-48 animate-pulse rounded bg-bg-tertiary" />
       </div>
 
-      <div className="flex flex-1 flex-col gap-5 lg:flex-row lg:gap-6">
-        {/* Left Column */}
-        <div className="flex min-w-0 flex-1 flex-col gap-5">
-          {/* Issue Card skeleton */}
-          <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex flex-1 flex-col gap-3">
-                <div className="h-6 w-3/4 animate-pulse rounded bg-bg-tertiary" />
-                <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
-                <div className="h-4 w-2/3 animate-pulse rounded bg-bg-tertiary" />
-              </div>
+      {/* Compact header skeleton */}
+      <div className="rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+        <div className="flex flex-col gap-4">
+          {/* Badges row */}
+          <div className="flex items-center justify-between">
+            <div className="flex gap-2">
               <div className="h-6 w-20 animate-pulse rounded-full bg-bg-tertiary" />
+              <div className="h-6 w-28 animate-pulse rounded-full bg-bg-tertiary" />
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-2 w-20 animate-pulse rounded-full bg-bg-tertiary" />
+              <div className="h-4 w-8 animate-pulse rounded bg-bg-tertiary" />
             </div>
           </div>
-
-          {/* Code block skeleton */}
-          <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
-            <div className="mb-4 h-5 w-24 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-40 w-full animate-pulse rounded-xl bg-bg-tertiary" />
+          {/* Title */}
+          <div className="h-7 w-3/4 animate-pulse rounded bg-bg-tertiary" />
+          {/* Description */}
+          <div className="flex flex-col gap-2">
+            <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
+            <div className="h-4 w-2/3 animate-pulse rounded bg-bg-tertiary" />
           </div>
-
-          {/* Trust signals skeleton */}
-          <div className="flex items-center gap-6 rounded-2xl border border-border-light/80 bg-white px-6 py-4 shadow-[var(--shadow-card)]">
+          {/* Metadata row */}
+          <div className="flex items-center gap-3 border-t border-border-light/60 pt-4">
+            <div className="h-6 w-16 animate-pulse rounded-md bg-bg-tertiary" />
+            <div className="h-6 w-14 animate-pulse rounded-md bg-bg-tertiary" />
+            <div className="h-6 w-18 animate-pulse rounded-md bg-bg-tertiary" />
+            <div className="hidden h-4 w-px bg-border-light sm:block" />
             <div className="h-4 w-28 animate-pulse rounded bg-bg-tertiary" />
             <div className="h-4 w-24 animate-pulse rounded bg-bg-tertiary" />
-            <div className="h-4 w-32 animate-pulse rounded bg-bg-tertiary" />
           </div>
         </div>
-
-        {/* Right Column skeleton */}
-        <div className="w-full lg:w-[380px]">
-          <FixBundleSkeleton />
-        </div>
       </div>
+
+      {/* Fix bundle skeleton */}
+      <FixBundleSkeleton />
     </main>
   );
 }
 
 /**
- * Skeleton for the fix bundle sidebar card.
+ * Skeleton for the fix bundle card — full-width with section placeholders.
  */
 function FixBundleSkeleton() {
   return (
-    <div className="rounded-2xl border border-border-light/80 bg-white p-6 shadow-[var(--shadow-card)]">
-      <div className="mb-4 h-5 w-32 animate-pulse rounded bg-bg-tertiary" />
-      <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-6 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="h-5 w-5 animate-pulse rounded bg-bg-tertiary" />
+        <div className="h-5 w-36 animate-pulse rounded bg-bg-tertiary" />
+      </div>
+      {/* Summary */}
+      <div className="flex flex-col gap-2">
         <div className="h-4 w-full animate-pulse rounded bg-bg-tertiary" />
         <div className="h-4 w-5/6 animate-pulse rounded bg-bg-tertiary" />
-        <div className="h-4 w-2/3 animate-pulse rounded bg-bg-tertiary" />
       </div>
-      <div className="mt-6 flex flex-col gap-2">
+      {/* Fix steps */}
+      <div className="flex flex-col gap-3">
+        <div className="h-4 w-20 animate-pulse rounded bg-bg-tertiary" />
         {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <div className="h-5 w-5 animate-pulse rounded-full bg-bg-tertiary" />
+          <div
+            key={i}
+            className="flex items-start gap-3 rounded-xl border border-border-light/60 bg-bg-muted/30 p-4"
+          >
+            <div className="h-6 w-6 animate-pulse rounded-full bg-bg-tertiary" />
             <div className="h-4 flex-1 animate-pulse rounded bg-bg-tertiary" />
           </div>
         ))}
+      </div>
+      {/* Code changes */}
+      <div className="flex flex-col gap-3">
+        <div className="h-4 w-28 animate-pulse rounded bg-bg-tertiary" />
+        <div className="h-12 w-full animate-pulse rounded-xl bg-bg-tertiary" />
+        <div className="h-12 w-full animate-pulse rounded-xl bg-bg-tertiary" />
       </div>
     </div>
   );
