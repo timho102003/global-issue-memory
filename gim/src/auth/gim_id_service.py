@@ -220,6 +220,14 @@ class GIMIdService:
         logger.info("Reactivated GIM identity")
         return True
 
+    # Whitelist of stat fields that can be incremented
+    ALLOWED_STAT_FIELDS: frozenset[str] = frozenset({
+        "total_searches",
+        "total_submissions",
+        "total_confirmations",
+        "total_reports",
+    })
+
     async def increment_stat(
         self,
         identity_id: UUID,
@@ -230,7 +238,13 @@ class GIMIdService:
         Args:
             identity_id: The identity ID.
             stat_field: The stat field to increment (total_searches, etc.).
+
+        Raises:
+            ValueError: If stat_field is not in the allowed whitelist.
         """
+        if stat_field not in self.ALLOWED_STAT_FIELDS:
+            raise ValueError(f"Invalid stat field: {stat_field}")
+
         # Get current value and increment
         identity = await self.get_identity_by_id(identity_id)
         if identity:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional, Tuple
 from uuid import UUID
@@ -26,6 +27,7 @@ from src.auth.oauth_models import (
     OAuthTokenResponse,
 )
 from src.auth.pkce import generate_authorization_code, verify_code_challenge
+from src.auth.token_blocklist import get_token_blocklist
 from src.config import get_settings
 from src.db.supabase_client import (
     get_record,
@@ -228,8 +230,18 @@ class GIMOAuthProvider:
 
         auth_code = self._record_to_auth_code(auth_code_record)
 
-        # Verify code hasn't been used
+        # Verify code hasn't been used (replay detection with cascade revocation)
         if auth_code.used_at is not None:
+            # Auth code replay detected - revoke all refresh tokens for this
+            # identity+client combination as a security precaution (RFC 6819)
+            logger.warning(
+                "Auth code replay detected, revoking all refresh tokens "
+                "for identity+client combination"
+            )
+            await self._revoke_all_refresh_tokens(
+                gim_identity_id=auth_code.gim_identity_id,
+                client_id=auth_code.client_id,
+            )
             return None, OAuthError(
                 error="invalid_grant",
                 error_description="Authorization code has already been used",
@@ -256,14 +268,14 @@ class GIMOAuthProvider:
                 error_description="Redirect URI mismatch",
             )
 
-        # Verify PKCE code challenge
+        # Verify PKCE code challenge (only S256 is allowed per OAuth 2.1)
         method = auth_code.code_challenge_method
-        if method not in ("S256", "plain"):
+        if method != "S256":
             method = "S256"
         if not verify_code_challenge(
             code_verifier,
             auth_code.code_challenge,
-            method,  # type: ignore
+            method,
         ):
             return None, OAuthError(
                 error="invalid_grant",
@@ -407,8 +419,15 @@ class GIMOAuthProvider:
                 logger.info("Revoked refresh token")
                 return True
 
-        # Note: Access tokens (JWTs) cannot be revoked without a blocklist
-        # For now, we just return False for access tokens
+        # For access tokens (JWTs), add to in-memory blocklist
+        if token_type_hint in (None, "access_token"):
+            token_hash = hashlib.sha256(token.encode()).hexdigest()
+            blocklist = get_token_blocklist()
+            # Use a generous TTL (24 hours) since we may not know exact expiry
+            blocklist.add(token_hash, time.time() + 86400)
+            logger.info("Added access token to blocklist")
+            return True
+
         return False
 
     async def _generate_tokens(
@@ -460,6 +479,50 @@ class GIMOAuthProvider:
             refresh_token=refresh_token,
             scope=scope,
         ), None
+
+    async def _revoke_all_refresh_tokens(
+        self,
+        gim_identity_id: UUID,
+        client_id: str,
+    ) -> int:
+        """Revoke all active refresh tokens for an identity+client pair.
+
+        Used as a cascade action when an authorization code replay is detected.
+
+        Args:
+            gim_identity_id: The GIM identity ID.
+            client_id: The OAuth client ID.
+
+        Returns:
+            int: Number of tokens revoked.
+        """
+        # Query all active refresh tokens for this identity+client
+        records = await query_records(
+            OAUTH_REFRESH_TOKENS_TABLE,
+            filters={
+                "gim_identity_id": str(gim_identity_id),
+                "client_id": client_id,
+            },
+        )
+
+        revoked_count = 0
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for record in records:
+            if record.get("revoked_at") is None:
+                await update_record(
+                    OAUTH_REFRESH_TOKENS_TABLE,
+                    str(record["id"]),
+                    {"revoked_at": now_iso},
+                )
+                revoked_count += 1
+
+        if revoked_count > 0:
+            logger.info(
+                f"Cascade revoked {revoked_count} refresh token(s) "
+                "due to auth code replay"
+            )
+
+        return revoked_count
 
     def _hash_token(self, token: str) -> str:
         """Hash a token for storage.

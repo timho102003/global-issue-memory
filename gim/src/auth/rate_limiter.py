@@ -302,7 +302,27 @@ class RateLimiter:
             except Exception as e:
                 if attempt == max_retries - 1:
                     logger.warning(f"Atomic rate limit update failed: {e}")
-                    # Fall back to simple update on last attempt
+                    # Re-fetch current state before fallback to avoid
+                    # race condition with stale daily_used value
+                    fallback_record = await get_record(
+                        TABLE_NAME, str(identity_id)
+                    )
+                    if not fallback_record:
+                        raise ValueError(
+                            f"Identity not found: {identity_id}"
+                        )
+                    daily_used = fallback_record.get(
+                        "daily_search_used", 0
+                    )
+                    # Re-check limit with fresh data
+                    if daily_used >= daily_limit:
+                        raise RateLimitExceeded(
+                            operation=operation,
+                            limit=daily_limit,
+                            used=daily_used,
+                            reset_at=reset_at,
+                        )
+                    # Fall back to simple update with fresh value
                     await update_record(
                         TABLE_NAME,
                         str(identity_id),

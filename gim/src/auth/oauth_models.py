@@ -55,10 +55,20 @@ class OAuthClientRegistrationRequest(BaseModel):
     @field_validator("redirect_uris")
     @classmethod
     def validate_redirect_uris(cls, v: list[str]) -> list[str]:
-        """Validate redirect URIs are valid."""
+        """Validate redirect URIs are valid.
+
+        Rejects URIs with:
+        - Non-HTTP(S) schemes
+        - Fragment components (#)
+        - Wildcard characters (*)
+        """
         for uri in v:
             if not uri.startswith(("http://", "https://")):
                 raise ValueError(f"Invalid redirect URI scheme: {uri}")
+            if "#" in uri:
+                raise ValueError(f"Redirect URI must not contain fragments: {uri}")
+            if "*" in uri:
+                raise ValueError(f"Redirect URI must not contain wildcards: {uri}")
         return v
 
 
@@ -88,7 +98,7 @@ class OAuthAuthorizationCode(BaseModel):
         gim_identity_id: GIM identity that authorized.
         redirect_uri: URI to redirect after authorization.
         code_challenge: PKCE code challenge.
-        code_challenge_method: PKCE challenge method (S256 or plain).
+        code_challenge_method: PKCE challenge method (only S256 per OAuth 2.1).
         scope: Requested scope (optional).
         expires_at: When the code expires.
         used_at: When the code was exchanged (null if unused).
@@ -101,7 +111,7 @@ class OAuthAuthorizationCode(BaseModel):
     gim_identity_id: UUID
     redirect_uri: str
     code_challenge: str
-    code_challenge_method: str = "S256"
+    code_challenge_method: Literal["S256"] = "S256"
     scope: Optional[str] = None
     expires_at: datetime
     used_at: Optional[datetime] = None
