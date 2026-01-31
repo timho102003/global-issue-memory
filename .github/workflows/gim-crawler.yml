@@ -23,7 +23,7 @@ on:
 jobs:
   crawl:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: gim
