@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Github, Users, Shield } from "lucide-react";
+import { Sparkles, BookOpen, Github, Users, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface HeroProps {
@@ -24,7 +24,7 @@ export function Hero({ onPrimaryClick, onSecondaryClick }: HeroProps) {
         </div>
 
         {/* Headline */}
-        <h1 className="max-w-[900px] text-center text-3xl font-bold leading-[1.12] tracking-tight text-text-primary sm:text-4xl md:text-5xl lg:text-[56px]">
+        <h1 className="max-w-[900px] text-center text-3xl font-bold leading-[1.12] tracking-tight text-text-primary sm:text-4xl md:text-5xl lg:text-[44px]">
           Build Together. Fix Once. Help Everyone.
         </h1>
 
@@ -48,8 +48,8 @@ export function Hero({ onPrimaryClick, onSecondaryClick }: HeroProps) {
             variant="outline"
             className="w-full border-border-light px-8 py-4 text-[15px] font-semibold text-text-primary hover:bg-bg-muted sm:w-auto"
           >
-            <Github className="h-4 w-4" />
-            View on GitHub
+            <BookOpen className="h-4 w-4" />
+            How to Install
           </Button>
         </div>
 

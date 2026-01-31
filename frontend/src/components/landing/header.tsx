@@ -28,15 +28,18 @@ export function Header({ onCtaClick }: HeaderProps) {
 
         {/* Desktop Navigation — absolutely centered */}
         <nav className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-8 md:flex">
-          <a href="#how-it-works" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
+          <a href="/#how-it-works" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
             How It Works
           </a>
-          <a href="#features" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
+          <a href="/#features" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
             Features
           </a>
-          <a href="#faq" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
+          <a href="/#faq" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
             FAQ
           </a>
+          <Link href="/docs" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
+            Docs
+          </Link>
         </nav>
 
         {/* Desktop CTA */}
@@ -63,26 +66,33 @@ export function Header({ onCtaClick }: HeaderProps) {
         <div className="border-t border-border-light/60 bg-white/95 backdrop-blur-md md:hidden">
           <div className="mx-auto flex max-w-[1200px] flex-col gap-1 px-5 py-4 sm:px-8">
             <a
-              href="#how-it-works"
+              href="/#how-it-works"
               onClick={() => setMobileOpen(false)}
               className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
             >
               How It Works
             </a>
             <a
-              href="#features"
+              href="/#features"
               onClick={() => setMobileOpen(false)}
               className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
             >
               Features
             </a>
             <a
-              href="#faq"
+              href="/#faq"
               onClick={() => setMobileOpen(false)}
               className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
             >
               FAQ
             </a>
+            <Link
+              href="/docs"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
+            >
+              Docs
+            </Link>
             <div className="mt-2 px-4">
               <Button onClick={onCtaClick} size="sm" className="w-full">
                 Join the Community

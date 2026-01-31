@@ -1,6 +1,6 @@
 "use client";
 
-import { Sparkles, Github } from "lucide-react";
+import { Sparkles, BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface CtaSectionProps {
@@ -36,8 +36,8 @@ export function CtaSection({ onPrimaryClick, onSecondaryClick }: CtaSectionProps
             variant="outline"
             className="w-full border-border-light px-8 py-4 text-[15px] font-semibold text-text-primary hover:bg-bg-muted sm:w-auto"
           >
-            <Github className="h-4 w-4" />
-            View on GitHub
+            <BookOpen className="h-4 w-4" />
+            How to Install
           </Button>
         </div>
 
