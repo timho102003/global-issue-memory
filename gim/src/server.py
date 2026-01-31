@@ -18,22 +18,22 @@ learn from each other's solutions.
 └─────────────────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│  MANDATORY: After resolving ANY error, you MUST complete these steps:       │
+│  AFTER FIXING: gim_confirm_fix is REQUIRED after applying a GIM fix.       │
+│  Submission is CONDITIONAL — apply the global usefulness filter:            │
 │                                                                             │
-│  1. Call gim_submit_issue with the error, root cause, and fix steps.        │
-│     This applies whether you solved it yourself OR used a GIM fix.          │
+│  Ask: "Would a stranger on a completely different codebase hit this         │
+│        same error?"                                                         │
 │                                                                             │
-│  2. If you applied a fix from gim_get_fix_bundle, ALSO call                 │
-│     gim_confirm_fix to report whether the fix worked or failed.             │
-│                                                                             │
-│  These are REQUIRED steps, not optional. Never skip them.                   │
-│  Every submitted fix improves the knowledge base for all AI assistants.     │
+│  YES → Submit: library/framework bugs, build tools, deployment,             │
+│         env issues, SDK pitfalls, AI model quirks                           │
+│  NO  → Skip:  project-specific DB schemas, variable naming,                 │
+│         business logic, typos, test fixtures                                │
 └─────────────────────────────────────────────────────────────────────────────┘
 
 WHEN TO USE GIM:
   1. IMMEDIATELY when you encounter an error during coding assistance
-  2. ALWAYS after resolving ANY error (submit your solution)
-  3. ALWAYS after applying a GIM fix (report whether it worked)
+  2. ALWAYS after applying a GIM fix (confirm_fix is REQUIRED)
+  3. After resolving an error yourself, submit ONLY if globally useful
 
 STANDARD WORKFLOW:
   ┌─────────────────────────────────────────────────────────────────────────┐
@@ -51,29 +51,27 @@ STANDARD WORKFLOW:
   │     ▼           ▼                                                       │
   │  ┌──────────┐  Solve it yourself                                        │
   │  │gim_get_  │         │                                                 │
-  │  │fix_bundle│         │                                                 │
-  │  └────┬─────┘         │                                                 │
-  │       │               │                                                 │
-  │       ▼               │                                                 │
-  │  Apply fix            │                                                 │
-  │       │               │                                                 │
-  │       ▼               ▼                                                 │
-  │  ┌─────────────┐  ┌─────────────┐                                       │
-  │  │gim_confirm_ │  │gim_submit_  │ ◄── REQUIRED: submit your fix!        │
-  │  │fix          │  │issue        │                                       │
-  │  │ (REQUIRED)  │  │ (REQUIRED)  │                                       │ 
-  │  └──────┬──────┘  └──────┬──────┘                                       │
-  │         │                │                                              │
-  │         └────────┬───────┘                                              │
-  │                  ▼                                                      │
-  │           Done - both paths                                             │
-  │           require submission                                            │
+  │  │fix_bundle│         ▼                                                 │
+  │  └────┬─────┘  Globally useful?                                         │
+  │       │         ┌─────┴─────┐                                           │
+  │       ▼        YES          NO                                          │
+  │  Apply fix      │           │                                           │
+  │       │         ▼           ▼                                           │
+  │       ▼    ┌──────────┐   Done                                          │
+  │  ┌─────────────┐ │gim_submit_ │   (skip)                               │
+  │  │gim_confirm_ │ │issue       │                                         │
+  │  │fix          │ └──────┬─────┘                                         │
+  │  │ (REQUIRED)  │        │                                               │
+  │  └──────┬──────┘        │                                               │
+  │         │               │                                               │
+  │         ▼               ▼                                               │
+  │              Done                                                       │
   └─────────────────────────────────────────────────────────────────────────┘
 
 AVAILABLE TOOLS:
   • gim_search_issues  - Search for existing solutions (ALWAYS start here)
   • gim_get_fix_bundle - Get detailed fix for a matched issue
-  • gim_submit_issue   - Submit a resolved issue (REQUIRED after every fix)
+  • gim_submit_issue   - Submit a resolved issue (only if globally useful)
   • gim_confirm_fix    - Report fix outcome (REQUIRED after applying a GIM fix)
   • gim_report_usage   - Manual analytics (rarely needed)
 

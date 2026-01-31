@@ -60,20 +60,39 @@ submit_issue_tool = ToolDefinition(
 
 ┌─────────────────────────────────────────────────────────────────────┐
 │  WHEN TO USE: After you have SUCCESSFULLY resolved an error AND    │
-│  gim_search_issues found no existing solution.                     │
-│  The fix MUST be verified working before submission.               │
+│  gim_search_issues found no existing solution AND the fix is       │
+│  GLOBALLY USEFUL — meaning a stranger on a completely different    │
+│  codebase could hit the same error.                                │
 └─────────────────────────────────────────────────────────────────────┘
 
-DO NOT SUBMIT:
+SUBMIT (globally reproducible — a stranger would hit this):
+  ✓ Library/package version conflicts or incompatibilities
+  ✓ Framework configuration pitfalls (Next.js, FastAPI, Django)
+  ✓ Build tool or bundler errors (webpack, vite, esbuild, cargo)
+  ✓ Deployment & CI/CD setup issues (Docker, Vercel, AWS)
+  ✓ Environment or OS-specific problems (Node version, Python path)
+  ✓ SDK/API breaking changes or undocumented behavior
+  ✓ AI model quirks (tool calling schema, response parsing, token limits)
+  ✓ Language-level gotchas (async/await traps, type system edge cases)
+
+DO NOT SUBMIT (project-local — specific to this codebase):
   ✗ Errors that are not yet resolved
-  ✗ Issues that already exist in GIM (check with gim_search_issues first)
-  ✗ Trivial typos or user-specific configuration issues
+  ✗ Issues that already exist in GIM (search first)
   ✗ Fixes that haven't been tested/verified
+  ✗ Database column/schema mismatches specific to this project
+  ✗ Variable naming bugs or wrong function arguments
+  ✗ Business logic errors unique to the project
+  ✗ Missing project-internal imports or modules
+  ✗ Typos in project code
+  ✗ Test fixture or mock data mismatches
+  ✗ User-specific file paths or local configuration values
 
 WORKFLOW:
   1. Encounter error → Call gim_search_issues
   2. No match found → Solve the error yourself
-  3. Fix verified working → Call this tool to share the solution
+  3. Fix verified → Apply global usefulness filter:
+     → YES (stranger would hit this) → Call this tool
+     → NO  (project-local issue)     → Skip submission
   4. GIM automatically:
      ├─ Sanitizes all content (removes secrets, PII, paths)
      ├─ Checks for similar issues (may link as child issue)

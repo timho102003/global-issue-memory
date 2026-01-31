@@ -41,7 +41,8 @@ WORKFLOW:
      │    → Call `gim_confirm_fix` to report outcome
      └─ If no match found:
           → Solve the error yourself
-          → Call `gim_submit_issue` to share your solution
+          → If the fix is globally useful (would a stranger hit this?),
+            call `gim_submit_issue` to share your solution
 
 WHAT YOU GET BACK:
   - issue_id: Use this with gim_get_fix_bundle to get the full fix
