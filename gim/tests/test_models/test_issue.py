@@ -124,6 +124,57 @@ class TestMasterIssueResponse:
                 updated_at=datetime.now(),
             )
 
+    def test_source_defaults_to_none(self) -> None:
+        """Test that source field defaults to None when not provided."""
+        issue = MasterIssueResponse(
+            id=uuid4(),
+            canonical_title="LangChain tool decorator import error",
+            description="The @tool decorator was moved to langchain_core in version 0.2.x",
+            root_cause_category=RootCauseCategory.ENVIRONMENT,
+            confidence_score=0.85,
+            child_issue_count=5,
+            environment_coverage=["python 3.11", "macOS"],
+            verification_count=10,
+            status=IssueStatus.ACTIVE,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+        )
+        assert issue.source is None
+
+    def test_source_mcp_tool(self) -> None:
+        """Test that source field accepts 'mcp_tool' value."""
+        issue = MasterIssueResponse(
+            id=uuid4(),
+            canonical_title="LangChain tool decorator import error",
+            description="The @tool decorator was moved to langchain_core in version 0.2.x",
+            root_cause_category=RootCauseCategory.ENVIRONMENT,
+            confidence_score=0.85,
+            child_issue_count=5,
+            verification_count=10,
+            status=IssueStatus.ACTIVE,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            source="mcp_tool",
+        )
+        assert issue.source == "mcp_tool"
+
+    def test_source_github_crawler(self) -> None:
+        """Test that source field accepts 'github_crawler' value."""
+        issue = MasterIssueResponse(
+            id=uuid4(),
+            canonical_title="LangChain tool decorator import error",
+            description="The @tool decorator was moved to langchain_core in version 0.2.x",
+            root_cause_category=RootCauseCategory.ENVIRONMENT,
+            confidence_score=0.85,
+            child_issue_count=5,
+            verification_count=10,
+            status=IssueStatus.ACTIVE,
+            created_at=datetime.now(),
+            updated_at=datetime.now(),
+            source="github_crawler",
+        )
+        assert issue.source == "github_crawler"
+
 
 class TestChildIssueCreate:
     """Tests for ChildIssueCreate model."""

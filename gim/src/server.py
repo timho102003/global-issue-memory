@@ -1306,6 +1306,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "created_at": issue.get("created_at", ""),
                         "updated_at": issue.get("updated_at", "") or issue.get("created_at", ""),
                         "fix_preview": best_fix_preview.get(issue_id, {"has_fix": False}),
+                        "source": issue.get("source"),
                     })
 
                 return JSONResponse(
@@ -1369,6 +1370,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                         "summary": r.get("fix_summary"),
                         "first_step": None,
                     },
+                    "source": r.get("source"),
                 })
 
             return JSONResponse(
@@ -1475,6 +1477,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "status": issue.get("status", "active"),
                     "created_at": issue.get("created_at", ""),
                     "updated_at": issue.get("updated_at", "") or issue.get("created_at", ""),
+                    "source": issue.get("source"),
                 })
 
             return JSONResponse(
@@ -1738,6 +1741,7 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     "status": "active",
                     "created_at": issue.get("created_at", ""),
                     "updated_at": issue.get("created_at", ""),
+                    "source": issue.get("source"),
                 },
                 status_code=200,
             )

@@ -112,6 +112,7 @@ class MasterIssueResponse(MasterIssueBase):
         status: Current status of the issue.
         created_at: Timestamp when issue was created.
         updated_at: Timestamp when issue was last updated.
+        source: Origin of the issue ('mcp_tool' or 'github_crawler').
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -125,6 +126,7 @@ class MasterIssueResponse(MasterIssueBase):
     status: IssueStatus
     created_at: datetime
     updated_at: datetime
+    source: Optional[str] = None
 
 
 class ChildIssueCreate(BaseModel):
