@@ -48,7 +48,7 @@ class Settings(BaseSettings):
         description="Embedding vector dimensions (3072 for gemini-embedding-001)"
     )
     llm_model: str = Field(
-        default="gemini-3.0-flash-preview",
+        default="gemini-3-flash-preview",
         description="Google LLM model for processing"
     )
 

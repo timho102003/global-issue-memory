@@ -89,7 +89,7 @@ class TestExtractIssueData:
         """
         with patch("src.crawler.llm_extractor.get_settings") as mock:
             settings = MagicMock()
-            settings.llm_model = "gemini-3.0-flash-preview"
+            settings.llm_model = "gemini-3-flash-preview"
             mock.return_value = settings
             yield settings
 
@@ -264,7 +264,7 @@ class TestScoreQuality:
         """
         with patch("src.crawler.llm_extractor.get_settings") as mock:
             settings = MagicMock()
-            settings.llm_model = "gemini-3.0-flash-preview"
+            settings.llm_model = "gemini-3-flash-preview"
             mock.return_value = settings
             yield settings
 
