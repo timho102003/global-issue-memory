@@ -23,19 +23,8 @@ export function Footer() {
             <Link href="/docs" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
               Documentation
             </Link>
-            <Link href="/changelog" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
-              Changelog
-            </Link>
-            <a
-              href="https://github.com/timho102003/global-issue-memory"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[13px] text-text-secondary transition-colors hover:text-text-primary"
-            >
-              GitHub
-            </a>
-            <Link href="/privacy" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
-              Privacy
+<Link href="/terms" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
+              Terms &amp; Privacy
             </Link>
           </nav>
         </div>
@@ -46,7 +35,7 @@ export function Footer() {
         {/* Bottom Row */}
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-[12px] text-text-muted">
-            © 2025 GIM. PolyForm Noncommercial License 1.0.0.
+            © 2025–2026 GIM. PolyForm Noncommercial License 1.0.0.
           </p>
 
           {/* Social Links */}
@@ -56,6 +45,7 @@ export function Footer() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-text-muted transition-colors hover:text-text-primary"
+              aria-label="GIM on GitHub"
             >
               <Github className="h-4 w-4" />
             </a>
@@ -64,6 +54,7 @@ export function Footer() {
               target="_blank"
               rel="noopener noreferrer"
               className="text-text-muted transition-colors hover:text-text-primary"
+              aria-label="GIM on Twitter"
             >
               <Twitter className="h-4 w-4" />
             </a>
