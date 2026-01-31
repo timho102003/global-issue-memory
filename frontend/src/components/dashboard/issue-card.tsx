@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { Users } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,21 @@ export function IssueCard({ issue, className }: IssueCardProps) {
       {/* Footer: metadata */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-muted">
         {providerDisplay && <span>{providerDisplay}</span>}
+        {issue.source === "github_crawler" && (
+          <span
+            className="flex items-center gap-1 text-text-primary"
+            title="Sourced from GitHub"
+          >
+            <Image
+              src="/logos/github.svg"
+              alt="GitHub"
+              width={14}
+              height={14}
+              className="dark:invert"
+            />
+            <span className="text-[11px] font-medium">GitHub</span>
+          </span>
+        )}
         {issue.child_issue_count > 0 && (
           <span className="flex items-center gap-1 text-text-secondary">
             <Users className="h-3 w-3" />

@@ -37,6 +37,7 @@ export interface MasterIssue {
   language?: string;
   framework?: string;
   fix_preview?: FixPreview;
+  source?: string;
 }
 
 export interface MasterIssueCreate {

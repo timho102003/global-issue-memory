@@ -2,6 +2,7 @@
 
 import { use } from "react";
 
+import Image from "next/image";
 import { Badge } from "@/components/ui/badge";
 import {
   Breadcrumb,
@@ -116,7 +117,7 @@ export default function IssueDetailPage({
         </p>
 
         {/* Row 4: Metadata pills + Trust Signals */}
-        {(issue.model_provider || issue.language || issue.framework || issue.verification_count > 0) && (
+        {(issue.model_provider || issue.language || issue.framework || issue.verification_count > 0 || issue.source === "github_crawler") && (
           <div className="flex flex-wrap items-center gap-3 border-t border-border-light/60 pt-4">
             {/* Metadata pills */}
             {issue.model_provider && issue.model_provider !== "unknown" && (
@@ -132,6 +133,18 @@ export default function IssueDetailPage({
             {issue.framework && (
               <span className="rounded-md bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary">
                 {issue.framework.charAt(0).toUpperCase() + issue.framework.slice(1)}
+              </span>
+            )}
+            {issue.source === "github_crawler" && (
+              <span className="flex items-center gap-1.5 rounded-md bg-bg-tertiary px-2.5 py-1 text-xs font-medium text-text-primary transition-all duration-200">
+                <Image
+                  src="/logos/github.svg"
+                  alt="GitHub"
+                  width={14}
+                  height={14}
+                  className="dark:invert"
+                />
+                GitHub Crawler
               </span>
             )}
 

@@ -14,6 +14,8 @@ const PROVIDER_LOGOS: Record<string, string> = {
   xai: "/logos/xai.svg",
   meta: "/logos/meta.svg",
   groq: "/logos/groq.svg",
+  github: "/logos/github.svg",
+  "github-crawler": "/logos/github.svg",
 };
 
 /** Display names for providers (API may return lowercase) */
@@ -25,7 +27,12 @@ const PROVIDER_DISPLAY_NAMES: Record<string, string> = {
   groq: "Groq",
   google: "Google",
   mistral: "Mistral",
+  github: "GitHub",
+  "github-crawler": "GitHub Crawler",
 };
+
+/** Provider names to exclude from the list */
+const EXCLUDED_PROVIDERS = new Set(["unknown", "others"]);
 
 /** Fallback dot color for providers without a logo */
 const PROVIDER_COLORS: Record<string, string> = {
@@ -39,16 +46,10 @@ const PROVIDER_COLORS: Record<string, string> = {
  * Shows providers with logos (or colored dots as fallback) and values.
  */
 export function ProviderList({ data }: ProviderListProps) {
-  // Group smaller providers into "Others"
-  const sortedData = [...data].sort((a, b) => b.value - a.value);
-  const topProviders = sortedData.slice(0, 3);
-  const otherProviders = sortedData.slice(3);
-  const othersTotal = otherProviders.reduce((sum, p) => sum + p.value, 0);
-
-  const displayData = [
-    ...topProviders,
-    ...(othersTotal > 0 ? [{ name: "Others", value: othersTotal }] : []),
-  ];
+  // Filter out excluded providers and sort by value
+  const displayData = [...data]
+    .filter((p) => !EXCLUDED_PROVIDERS.has(p.name.toLowerCase()))
+    .sort((a, b) => b.value - a.value);
 
   return (
     <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6 lg:h-auto">
