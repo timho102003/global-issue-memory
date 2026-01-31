@@ -135,6 +135,12 @@ class Settings(BaseSettings):
         description="Refresh token TTL in days (30 days default)"
     )
 
+    # GitHub Crawler
+    github_token: Optional[SecretStr] = Field(
+        default=None,
+        description="GitHub PAT for crawler (optional, increases rate limits)"
+    )
+
     # Sanitization
     sanitization_confidence_threshold: float = Field(
         default=0.85,

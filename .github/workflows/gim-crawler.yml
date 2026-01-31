@@ -1,0 +1,91 @@
+name: GIM GitHub Issue Crawler
+
+on:
+  schedule:
+    # Run daily at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      repos:
+        description: 'Repos to crawl (space-separated)'
+        required: false
+        default: ''
+      max_issues:
+        description: 'Max issues per repo'
+        required: false
+        default: '50'
+      dry_run:
+        description: 'Dry run (extract/score only, no submission)'
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: gim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Run crawler
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIM_GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          INPUT_REPOS: ${{ inputs.repos }}
+          INPUT_MAX_ISSUES: ${{ inputs.max_issues }}
+          INPUT_DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          ARGS=""
+          if [ -n "$INPUT_REPOS" ]; then
+            # Validate each repo matches owner/name pattern
+            for repo in $INPUT_REPOS; do
+              if ! echo "$repo" | grep -qE '^[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+$'; then
+                echo "Invalid repo format: $repo"
+                exit 1
+              fi
+            done
+            ARGS="$ARGS --repos $INPUT_REPOS"
+          fi
+          if [ -n "$INPUT_MAX_ISSUES" ]; then
+            # Validate max_issues is a positive integer
+            if ! echo "$INPUT_MAX_ISSUES" | grep -qE '^[0-9]+$'; then
+              echo "Invalid max_issues: $INPUT_MAX_ISSUES"
+              exit 1
+            fi
+            ARGS="$ARGS --max-issues $INPUT_MAX_ISSUES"
+          fi
+          if [ "$INPUT_DRY_RUN" = "true" ]; then
+            ARGS="$ARGS --dry-run"
+          fi
+          uv run python -m scripts.github_crawler $ARGS
+
+      - name: Print status report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        run: uv run python -m scripts.github_crawler --status-report
