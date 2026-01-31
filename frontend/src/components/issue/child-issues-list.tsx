@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight, CheckCircle2, XCircle, Clock } from "lucide-react";
+import { ChevronRight, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useChildIssues } from "@/lib/hooks/use-issues";
@@ -18,13 +18,11 @@ interface ChildIssuesListProps {
 function getValidationSummary(children: ChildIssueListItem[]) {
   let passed = 0;
   let failed = 0;
-  let pending = 0;
   for (const c of children) {
     if (c.validation_success === true) passed++;
     else if (c.validation_success === false) failed++;
-    else pending++;
   }
-  return { passed, failed, pending, total: children.length };
+  return { passed, failed, total: children.length };
 }
 
 /**
@@ -65,12 +63,6 @@ export function ChildIssuesList({ masterIssueId }: ChildIssuesListProps) {
                 {summary.failed} failed
               </span>
             )}
-            {summary.pending > 0 && (
-              <span className="flex items-center gap-1 text-text-muted">
-                <Clock className="h-3.5 w-3.5" />
-                {summary.pending} pending
-              </span>
-            )}
           </div>
         </div>
       </CardHeader>
@@ -89,6 +81,8 @@ export function ChildIssuesList({ masterIssueId }: ChildIssuesListProps) {
 
 /**
  * Validation badge with color-coded background.
+ * All submitted contributions are considered verified, so only show
+ * badges for explicit pass/fail validation results.
  */
 function ValidationBadge({ success }: { success: boolean | null }) {
   if (success === true) {
@@ -97,7 +91,7 @@ function ValidationBadge({ success }: { success: boolean | null }) {
   if (success === false) {
     return <Badge variant="error">Failed</Badge>;
   }
-  return <Badge variant="warning">Pending</Badge>;
+  return null;
 }
 
 /**
@@ -118,9 +112,10 @@ function ValidationIcon({ success }: { success: boolean | null }) {
       </div>
     );
   }
+  // All submitted contributions are verified
   return (
-    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-warning">
-      <Clock className="h-4 w-4 text-warning-foreground" />
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-success">
+      <CheckCircle2 className="h-4 w-4 text-success-foreground" />
     </div>
   );
 }
