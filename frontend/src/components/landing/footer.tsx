@@ -23,6 +23,9 @@ export function Footer() {
             <Link href="/docs" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
               Documentation
             </Link>
+            <Link href="/blog" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
+              Blog
+            </Link>
 <Link href="/terms" className="text-[13px] text-text-secondary transition-colors hover:text-text-primary">
               Terms &amp; Privacy
             </Link>

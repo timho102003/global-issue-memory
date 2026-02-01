@@ -1,4 +1,5 @@
-import { Repeat, Ban, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { Repeat, Ban, ArrowRight } from "lucide-react";
 
 /**
  * Problem section with responsive layout and proper container.
@@ -19,7 +20,7 @@ export function ProblemSection() {
         "As context windows fill with stale, redundant debugging attempts, AI assistants degrade — giving worse answers the longer you work.",
       link: {
         label: "Learn more",
-        href: "https://research.trychroma.com/context-rot",
+        href: "/blog/context-rot",
       },
     },
   ];
@@ -52,15 +53,13 @@ export function ProblemSection() {
                 {problem.description}
               </p>
               {problem.link && (
-                <a
+                <Link
                   href={problem.link.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-[13px] font-medium text-accent-warm transition-colors duration-150 hover:text-accent-gold"
                 >
                   {problem.link.label}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
+                  <ArrowRight className="h-3 w-3" />
+                </Link>
               )}
             </div>
           ))}

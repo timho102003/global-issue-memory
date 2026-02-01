@@ -40,6 +40,9 @@ export function Header({ onCtaClick }: HeaderProps) {
           <Link href="/docs" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
             Docs
           </Link>
+          <Link href="/blog" className="text-[13px] font-medium text-text-secondary transition-colors hover:text-text-primary">
+            Blog
+          </Link>
         </nav>
 
         {/* Desktop CTA */}
@@ -92,6 +95,13 @@ export function Header({ onCtaClick }: HeaderProps) {
               className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
             >
               Docs
+            </Link>
+            <Link
+              href="/blog"
+              onClick={() => setMobileOpen(false)}
+              className="rounded-lg px-4 py-2.5 text-[14px] font-medium text-text-secondary transition-colors hover:bg-bg-muted hover:text-text-primary"
+            >
+              Blog
             </Link>
             <div className="mt-2 px-4">
               <Button onClick={onCtaClick} size="sm" className="w-full">
