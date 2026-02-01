@@ -78,7 +78,7 @@ jobs:
           if [ "$INPUT_DRY_RUN" = "true" ]; then
             ARGS="$ARGS --dry-run"
           fi
-          uv run python -m scripts.github_crawler $ARGS
+          uv run python -m scripts.github_crawler --limit 1000 $ARGS
 
       - name: Print status report
         env:
