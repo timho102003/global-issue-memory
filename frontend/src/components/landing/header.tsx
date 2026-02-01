@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Menu, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -20,10 +21,9 @@ export function Header({ onCtaClick }: HeaderProps) {
       <div className="relative mx-auto flex h-16 max-w-[1200px] items-center justify-between px-5 sm:px-8 lg:px-12">
         {/* Logo */}
         <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-          <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-gradient-to-br from-[#D4A853] to-[#B8860B] shadow-sm">
-            <span className="text-sm font-bold text-white">G</span>
-          </div>
-          <span className="text-lg font-bold tracking-tight text-text-primary">GIM</span>
+          <Image src="/logos/gim.svg" alt="GIM" width={36} height={36} className="h-9 w-9" />
+          <span className="hidden text-[14px] font-light tracking-wide text-text-primary sm:inline">Global Issue Memory</span>
+          <span className="text-[14px] font-light tracking-wide text-text-primary sm:hidden">GIM</span>
         </Link>
 
         {/* Desktop Navigation — absolutely centered */}

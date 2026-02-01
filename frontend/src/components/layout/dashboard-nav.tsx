@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
@@ -31,10 +32,9 @@ export function DashboardNav() {
       <div className="mx-auto flex h-14 max-w-[1040px] items-center justify-between px-4 sm:h-16 sm:px-6">
         {/* Logo — no extra padding so the G icon aligns with content below */}
         <Link href="/dashboard" className="flex items-center gap-2 transition-opacity hover:opacity-80 sm:gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-[8px] bg-gradient-to-br from-[#2D2A26] to-[#4A4A4A] shadow-sm sm:h-8 sm:w-8 sm:rounded-[10px]">
-            <span className="text-xs font-bold text-white sm:text-sm">G</span>
-          </div>
-          <span className="text-base font-bold tracking-tight text-text-primary sm:text-lg">GIM</span>
+          <Image src="/logos/gim.svg" alt="GIM" width={36} height={36} className="h-8 w-8 sm:h-9 sm:w-9" />
+          <span className="hidden text-[13px] font-light tracking-wide text-text-primary sm:inline sm:text-[14px]">Global Issue Memory</span>
+          <span className="text-[13px] font-light tracking-wide text-text-primary sm:hidden">GIM</span>
         </Link>
 
         {/* Nav Tabs */}

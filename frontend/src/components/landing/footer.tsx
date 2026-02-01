@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Github, Twitter } from "lucide-react";
 
 /**
@@ -12,10 +13,9 @@ export function Footer() {
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
           {/* Logo */}
           <div className="flex items-center gap-2.5">
-            <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-[#D4A853] to-[#B8860B] shadow-sm">
-              <span className="text-xs font-bold text-white">G</span>
-            </div>
-            <span className="text-base font-bold tracking-tight text-text-primary">GIM</span>
+            <Image src="/logos/gim.svg" alt="GIM" width={32} height={32} className="h-8 w-8" />
+            <span className="hidden text-[13px] font-light tracking-wide text-text-primary sm:inline">Global Issue Memory</span>
+            <span className="text-[13px] font-light tracking-wide text-text-primary sm:hidden">GIM</span>
           </div>
 
           {/* Links */}
