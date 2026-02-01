@@ -153,58 +153,76 @@ async def run_discover(
     return total_created
 
 
-async def run_fetch(repo: Optional[str] = None) -> dict:
+async def run_fetch(repo: Optional[str] = None, limit: int = 100) -> dict:
     """Fetch phase: get detailed data for PENDING issues.
+
+    Paginates in batches to work around Supabase's 1000-row cap.
 
     Args:
         repo: Optional repo filter.
+        limit: Maximum records to process.
 
     Returns:
         dict: Counts of fetched and dropped issues.
     """
-    pending = await get_issues_by_status(CrawlerStatus.PENDING, repo=repo)
+    batch_size = min(limit, 1000)
     counts = {"fetched": 0, "dropped": 0, "errored": 0}
+    processed = 0
 
-    for record in pending:
-        record_id = record["id"]
-        record_repo = record["repo"]
-        issue_number = record["issue_number"]
+    while processed < limit:
+        batch_limit = min(batch_size, limit - processed)
+        pending = await get_issues_by_status(
+            CrawlerStatus.PENDING, repo=repo, limit=batch_limit,
+        )
+        if not pending:
+            break
 
-        try:
-            details = await fetch_issue_details(record_repo, issue_number)
+        for record in pending:
+            record_id = record["id"]
+            record_repo = record["repo"]
+            issue_number = record["issue_number"]
 
-            # Apply filter
-            passes, drop_reason = filter_issue(
-                state_reason=record.get("state_reason"),
-                has_merged_pr=details.get("has_merged_pr", False),
-                issue_labels=record.get("issue_labels", []),
-                issue_body=details.get("raw_issue_body", ""),
-                pr_additions=details.get("pr_additions", 0),
-            )
+            try:
+                details = await fetch_issue_details(record_repo, issue_number)
 
-            if not passes:
-                await update_to_dropped(record_id, drop_reason or "NOT_A_FIX")
-                counts["dropped"] += 1
-                logger.debug(
-                    f"Dropped {record_repo}#{issue_number}: {drop_reason}"
+                # Apply filter
+                passes, drop_reason = filter_issue(
+                    state_reason=record.get("state_reason"),
+                    has_merged_pr=details.get("has_merged_pr", False),
+                    issue_labels=record.get("issue_labels", []),
+                    issue_body=details.get("raw_issue_body", ""),
+                    pr_additions=details.get("pr_additions", 0),
                 )
-                continue
 
-            fetched_data = CrawlerStateFetched(
-                has_merged_pr=details.get("has_merged_pr", False),
-                pr_number=details.get("pr_number"),
-                raw_issue_body=details.get("raw_issue_body"),
-                raw_comments=details.get("raw_comments", []),
-                raw_pr_body=details.get("raw_pr_body"),
-                raw_pr_diff_summary=details.get("raw_pr_diff_summary"),
-            )
-            await update_to_fetched(record_id, fetched_data)
-            counts["fetched"] += 1
+                if not passes:
+                    await update_to_dropped(record_id, drop_reason or "NOT_A_FIX")
+                    counts["dropped"] += 1
+                    logger.debug(
+                        f"Dropped {record_repo}#{issue_number}: {drop_reason}"
+                    )
+                    continue
 
-        except Exception as e:
-            await update_to_error(record_id, str(e))
-            counts["errored"] += 1
-            logger.error(f"Error fetching {record_repo}#{issue_number}: {e}")
+                fetched_data = CrawlerStateFetched(
+                    has_merged_pr=details.get("has_merged_pr", False),
+                    pr_number=details.get("pr_number"),
+                    raw_issue_body=details.get("raw_issue_body"),
+                    raw_comments=details.get("raw_comments", []),
+                    raw_pr_body=details.get("raw_pr_body"),
+                    raw_pr_diff_summary=details.get("raw_pr_diff_summary"),
+                )
+                await update_to_fetched(record_id, fetched_data)
+                counts["fetched"] += 1
+
+            except Exception as e:
+                await update_to_error(record_id, str(e))
+                counts["errored"] += 1
+                logger.error(f"Error fetching {record_repo}#{issue_number}: {e}")
+
+        processed += len(pending)
+        logger.info(
+            f"Fetch batch done ({processed} processed so far): "
+            f"{counts['fetched']} fetched, {counts['dropped']} dropped"
+        )
 
     logger.info(
         f"Fetch complete: {counts['fetched']} fetched, "
@@ -213,68 +231,86 @@ async def run_fetch(repo: Optional[str] = None) -> dict:
     return counts
 
 
-async def run_extract(repo: Optional[str] = None) -> dict:
+async def run_extract(repo: Optional[str] = None, limit: int = 100) -> dict:
     """Extract phase: LLM extraction for FETCHED issues.
+
+    Paginates in batches to work around Supabase's 1000-row cap.
 
     Args:
         repo: Optional repo filter.
+        limit: Maximum records to process.
 
     Returns:
         dict: Counts of extracted and dropped issues.
     """
-    fetched = await get_issues_by_status(CrawlerStatus.FETCHED, repo=repo)
+    batch_size = min(limit, 1000)
     counts = {"extracted": 0, "dropped": 0, "errored": 0}
+    processed = 0
 
-    for record in fetched:
-        record_id = record["id"]
-        record_repo = record["repo"]
-        issue_number = record["issue_number"]
+    while processed < limit:
+        batch_limit = min(batch_size, limit - processed)
+        fetched = await get_issues_by_status(
+            CrawlerStatus.FETCHED, repo=repo, limit=batch_limit,
+        )
+        if not fetched:
+            break
 
-        try:
-            # Extract structured data
-            extraction = await extract_issue_data(
-                issue_title=record.get("issue_title", ""),
-                issue_body=record.get("raw_issue_body"),
-                comments=record.get("raw_comments", []),
-                pr_body=record.get("raw_pr_body"),
-                pr_diff_summary=record.get("raw_pr_diff_summary"),
-            )
+        for record in fetched:
+            record_id = record["id"]
+            record_repo = record["repo"]
+            issue_number = record["issue_number"]
 
-            if not extraction.success:
-                await update_to_dropped(record_id, "EXTRACTION_FAILED")
-                counts["dropped"] += 1
-                logger.debug(
-                    f"Extraction failed for {record_repo}#{issue_number}: "
-                    f"{extraction.error}"
+            try:
+                # Extract structured data
+                extraction = await extract_issue_data(
+                    issue_title=record.get("issue_title", ""),
+                    issue_body=record.get("raw_issue_body"),
+                    comments=record.get("raw_comments", []),
+                    pr_body=record.get("raw_pr_body"),
+                    pr_diff_summary=record.get("raw_pr_diff_summary"),
                 )
-                continue
 
-            # Score quality
-            quality = await score_quality(
-                error_message=extraction.error_message,
-                root_cause=extraction.root_cause,
-                fix_summary=extraction.fix_summary,
-                language=extraction.language,
-                framework=extraction.framework,
-            )
+                if not extraction.success:
+                    await update_to_dropped(record_id, "EXTRACTION_FAILED")
+                    counts["dropped"] += 1
+                    logger.debug(
+                        f"Extraction failed for {record_repo}#{issue_number}: "
+                        f"{extraction.error}"
+                    )
+                    continue
 
-            extracted_data = CrawlerStateExtracted(
-                extracted_error=extraction.error_message,
-                extracted_root_cause=extraction.root_cause,
-                extracted_fix_summary=extraction.fix_summary,
-                extracted_fix_steps=extraction.fix_steps,
-                extracted_language=extraction.language,
-                extracted_framework=extraction.framework,
-                extraction_confidence=extraction.confidence,
-                quality_score=quality,
-            )
-            await update_to_extracted(record_id, extracted_data)
-            counts["extracted"] += 1
+                # Score quality
+                quality = await score_quality(
+                    error_message=extraction.error_message,
+                    root_cause=extraction.root_cause,
+                    fix_summary=extraction.fix_summary,
+                    language=extraction.language,
+                    framework=extraction.framework,
+                )
 
-        except Exception as e:
-            await update_to_error(record_id, str(e))
-            counts["errored"] += 1
-            logger.error(f"Error extracting {record_repo}#{issue_number}: {e}")
+                extracted_data = CrawlerStateExtracted(
+                    extracted_error=extraction.error_message,
+                    extracted_root_cause=extraction.root_cause,
+                    extracted_fix_summary=extraction.fix_summary,
+                    extracted_fix_steps=extraction.fix_steps,
+                    extracted_language=extraction.language,
+                    extracted_framework=extraction.framework,
+                    extraction_confidence=extraction.confidence,
+                    quality_score=quality,
+                )
+                await update_to_extracted(record_id, extracted_data)
+                counts["extracted"] += 1
+
+            except Exception as e:
+                await update_to_error(record_id, str(e))
+                counts["errored"] += 1
+                logger.error(f"Error extracting {record_repo}#{issue_number}: {e}")
+
+        processed += len(fetched)
+        logger.info(
+            f"Extract batch done ({processed} processed so far): "
+            f"{counts['extracted']} extracted, {counts['dropped']} dropped"
+        )
 
     logger.info(
         f"Extract complete: {counts['extracted']} extracted, "
@@ -383,11 +419,11 @@ async def main(args: argparse.Namespace) -> None:
 
     if phase in ("fetch", "full"):
         logger.info("=== FETCH phase ===")
-        await run_fetch()
+        await run_fetch(limit=args.limit)
 
     if phase in ("extract", "full"):
         logger.info("=== EXTRACT phase ===")
-        await run_extract()
+        await run_extract(limit=args.limit)
 
     if phase in ("submit", "full"):
         logger.info(
@@ -456,6 +492,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=0.6,
         help="Quality score threshold (default: 0.6)",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=100,
+        help="Max records per phase (default: 100)",
     )
     return parser.parse_args()
 

@@ -10,11 +10,15 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 from google import genai
+from google.genai import errors as genai_errors
 
 from src.config import get_settings
 from src.logging_config import get_logger
 
 logger = get_logger("crawler.llm_extractor")
+
+MAX_RETRIES = 3
+RETRY_BASE_DELAY = 2.0
 
 
 @dataclass
@@ -149,6 +153,66 @@ def _format_comments(comments: list, max_comments: int = 10) -> str:
     return "\n\n".join(formatted)
 
 
+def _is_retryable(error: Exception) -> bool:
+    """Check if a Gemini API error is retryable.
+
+    Args:
+        error: The exception to check.
+
+    Returns:
+        bool: True if the error is transient and should be retried.
+    """
+    if isinstance(error, genai_errors.APIError):
+        return error.code in (429, 503)
+    error_str = str(error).lower()
+    return "503" in error_str or "overloaded" in error_str or "unavailable" in error_str
+
+
+async def _call_genai_with_retry(
+    client: genai.Client,
+    model: str,
+    contents: str,
+    max_retries: int = MAX_RETRIES,
+    base_delay: float = RETRY_BASE_DELAY,
+) -> str:
+    """Call Gemini API with exponential backoff retry.
+
+    Args:
+        client: Gemini client instance.
+        model: Model name to use.
+        contents: Prompt contents.
+        max_retries: Maximum number of retry attempts.
+        base_delay: Base delay in seconds for exponential backoff.
+
+    Returns:
+        str: Raw response text from the model.
+
+    Raises:
+        Exception: The last error if all retries are exhausted.
+    """
+    last_error: Optional[Exception] = None
+    for attempt in range(max_retries + 1):
+        try:
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=model,
+                contents=contents,
+            )
+            return response.text.strip()
+        except Exception as e:
+            last_error = e
+            if attempt < max_retries and _is_retryable(e):
+                delay = base_delay * (2 ** attempt)
+                logger.warning(
+                    f"Gemini API error (attempt {attempt + 1}/{max_retries + 1}), "
+                    f"retrying in {delay:.1f}s: {e}"
+                )
+                await asyncio.sleep(delay)
+            else:
+                raise
+    raise last_error  # type: ignore[misc]
+
+
 async def extract_issue_data(
     issue_title: str,
     issue_body: Optional[str],
@@ -180,13 +244,11 @@ async def extract_issue_data(
             pr_diff_summary=_truncate(pr_diff_summary, 2000),
         )
 
-        response = await asyncio.to_thread(
-            client.models.generate_content,
+        raw_text = await _call_genai_with_retry(
+            client=client,
             model=settings.llm_model,
             contents=prompt,
         )
-
-        raw_text = response.text.strip()
 
         # Strip markdown code blocks if present
         if raw_text.startswith("```"):
@@ -265,13 +327,11 @@ async def score_quality(
             framework=framework or "unknown",
         )
 
-        response = await asyncio.to_thread(
-            client.models.generate_content,
+        raw_text = await _call_genai_with_retry(
+            client=client,
             model=settings.llm_model,
             contents=prompt,
         )
-
-        raw_text = response.text.strip()
         score = float(raw_text)
 
         # Clamp to valid range
