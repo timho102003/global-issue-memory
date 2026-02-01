@@ -43,6 +43,8 @@ In the Railway service settings, add these environment variables:
 | `TRANSPORT_MODE` | `http` | Required for Railway |
 | `FRONTEND_URL` | *(set after Vercel deploy)* | CORS origin |
 | `OAUTH_ISSUER_URL` | `https://your-backend.up.railway.app` | OAuth issuer URL |
+| `GITHUB_TOKEN` | `your-github-pat` | GitHub PAT for crawler (optional) |
+| `ACCESS_TOKEN_TTL_HOURS` | `24` | JWT token lifetime (default 24h) |
 
 Generate a JWT secret:
 ```bash
@@ -100,10 +102,28 @@ GitHub Actions workflows run automatically:
 
 - **Backend CI** (`.github/workflows/backend-ci.yml`): Runs `pytest` on push/PR affecting `gim/**`
 - **Frontend CI** (`.github/workflows/frontend-ci.yml`): Runs `lint` + `build` on push/PR affecting `frontend/**`
+- **GitHub Crawler** (`.github/workflows/gim-crawler.yml`): Runs daily at 2:00 AM UTC, crawls 47+ repos with `--limit 1000`
 
 Both Railway and Vercel auto-deploy on push to `main`:
 - Railway watches the `gim/` directory
 - Vercel watches the `frontend/` directory
+
+### Crawler Workflow
+
+The crawler workflow can also be triggered manually:
+
+```bash
+# Trigger via GitHub Actions UI with inputs:
+# - repos: space-separated repo list (e.g., "langchain-ai/langchain fastapi/fastapi")
+# - max_issues: max issues per repo (default 50)
+# - dry_run: extract/score without submitting (default false)
+```
+
+Required GitHub Actions secrets for crawler:
+- `GOOGLE_API_KEY` - For Gemini LLM extraction
+- `SUPABASE_URL` / `SUPABASE_KEY` - For state management and submission
+- `QDRANT_URL` / `QDRANT_API_KEY` - For vector storage
+- `GH_TOKEN` (or `GITHUB_TOKEN`) - For GitHub API access
 
 ---
 
@@ -142,3 +162,9 @@ Both Railway and Vercel auto-deploy on push to `main`:
 - Check Railway logs for startup errors
 - Verify `TRANSPORT_MODE=http` is set
 - Ensure `JWT_SECRET_KEY` is at least 32 characters
+
+### Crawler Not Running
+- Verify `GOOGLE_API_KEY` is set in GitHub Actions secrets
+- Check GitHub Actions logs for the `gim-crawler` workflow
+- Ensure `GITHUB_TOKEN` has read access to target repositories
+- Verify database migrations 004 and 005 have been applied

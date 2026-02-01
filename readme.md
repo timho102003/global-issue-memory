@@ -184,12 +184,14 @@ python main.py
 - **Token Efficient** — Get answers in one lookup instead of 50 web searches; keep your context clean
 - **Community-Powered** — Every AI-solved issue makes everyone's assistant smarter
 - **Environment-Aware** — Tracks OS, language versions, and runtime context for precise matches
+- **Auto-Harvesting** — GitHub issue crawler automatically populates the knowledge base from 47+ popular repositories
 
 ## Documentation
 
 - [Architecture Guide](docs/ARCHITECTURE.md) - System design and components
 - [Setup & Configuration](docs/SETUP.md) - Installation and environment setup
 - [API Reference](docs/API.md) - MCP tools and data models
+- [GitHub Crawler](docs/CRAWLER.md) - Automated issue harvesting from GitHub
 - [Deployment Guide](docs/DEPLOYMENT.md) - Railway + Vercel deployment
 - [Contributing](docs/CONTRIBUTING.md) - Development guidelines
 
@@ -202,18 +204,20 @@ python main.py
 - Two-layer sanitization pipeline (secrets, PII, MRE synthesis, LLM sanitizer)
 - Database clients (Supabase, Qdrant)
 - Embedding service (Google Gemini)
-- MCP server with 5 tools
+- MCP server with 5 tools (stdio, HTTP, and dual transport modes)
 - OAuth 2.1 with PKCE authentication
 - Infrastructure improvements (custom exceptions, centralized logging, thread-safe clients)
 - Enhanced metadata services (contribution classifier, environment extractor, model parser)
 - Security hardening (generic error messages, structured error handling)
 - Vector storage optimization (single combined vector with INT8 scalar quantization)
-- Frontend dashboard (Next.js 15)
-- CI/CD pipelines (GitHub Actions)
+- Frontend dashboard (Next.js 15) with GIM branding and responsive design
+- CI/CD pipelines (GitHub Actions for backend, frontend, and crawler)
 - Docker deployment support
+- Vercel (frontend) + Railway (backend) deployment
+- GitHub issue crawler with batch pagination, quality scoring, and Gemini retry logic
+- Database migrations (5 migration files including OAuth and crawler state tables)
 
 ### In Progress
-- Database schema migrations
 - Canonicalization engine (root cause classification, clustering)
 - Search ranking algorithm
 - Full tool-to-database integration
@@ -240,7 +244,7 @@ See [API Reference](docs/API.md) for detailed tool schemas.
 - **Pydantic** - Data validation and settings
 - **Supabase** - PostgreSQL database
 - **Qdrant** - Vector database with INT8 scalar quantization (single combined vector per issue)
-- **Google Gemini** - Embeddings (gemini-embedding-001, 3072-dim) & LLM sanitization (gemini-2.5-flash-preview)
+- **Google Gemini** - Embeddings (gemini-embedding-001, 3072-dim) & LLM sanitization (gemini-3-flash-preview)
 
 ### Frontend
 - **Next.js 15** - React framework with App Router
@@ -264,10 +268,12 @@ npm run dev
 Visit `http://localhost:3000` to access the application.
 
 **Screens:**
-- **Landing** - Project overview and getting started
-- **Dashboard** - Search and browse issues, view analytics
-- **Issues** - Detailed issue view with fix bundles
-- **Profile** - User contributions and settings
+- **Landing** (`/`) - Project overview and getting started
+- **Docs** (`/docs/*`) - Full documentation with sidebar navigation
+- **Dashboard** (`/dashboard`) - Search and browse issues with category filters
+- **Issue Detail** (`/dashboard/issues/[id]`) - Full issue view with fix bundles and trust signals
+- **Profile** (`/dashboard/profile`) - User contributions, heatmap, and GIM ID card
+- **Terms** (`/terms`) - Terms of service
 
 ## Environment Variables
 
@@ -279,11 +285,20 @@ QDRANT_URL=http://localhost:6333
 QDRANT_API_KEY=your-qdrant-key
 GOOGLE_API_KEY=your-google-api-key
 
+# Authentication (required for HTTP transport)
+JWT_SECRET_KEY=your-secret-key-minimum-32-characters-long
+
 # Optional
 EMBEDDING_MODEL=gemini-embedding-001
 LLM_MODEL=gemini-3-flash-preview
 LOG_LEVEL=INFO
+GITHUB_TOKEN=your-github-pat              # For crawler (higher rate limits)
+ACCESS_TOKEN_TTL_HOURS=24                  # JWT access token lifetime
+SANITIZATION_CONFIDENCE_THRESHOLD=0.85     # Min confidence for sanitization
+SIMILARITY_MERGE_THRESHOLD=0.85            # Threshold for issue merging
 ```
+
+See [Setup Guide](docs/SETUP.md) for the full environment variables reference.
 
 ## Contributing
 

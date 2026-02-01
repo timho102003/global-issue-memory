@@ -36,7 +36,7 @@ These have sensible defaults:
 # Google AI Models
 EMBEDDING_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=3072
-LLM_MODEL=gemini-2.5-flash-preview-05-20
+LLM_MODEL=gemini-3-flash-preview
 
 # Logging
 LOG_LEVEL=INFO
@@ -44,7 +44,7 @@ LOG_LEVEL=INFO
 # Authentication
 AUTH_ISSUER=gim-mcp
 AUTH_AUDIENCE=gim-clients
-ACCESS_TOKEN_TTL_HOURS=1
+ACCESS_TOKEN_TTL_HOURS=24
 
 # Server Transport
 TRANSPORT_MODE=stdio
@@ -147,10 +147,10 @@ Vector dimensions for the embedding model. Must match the model's output dimensi
 
 **Type**: string
 **Required**: No
-**Default**: `gemini-2.5-flash-preview-05-20`
+**Default**: `gemini-3-flash-preview`
 **Options**:
-- `gemini-2.5-flash-preview-05-20` (fast, cost-effective)
-- `gemini-2.0-flash-exp` (experimental)
+- `gemini-3-flash-preview` (fast, cost-effective)
+- `gemini-2.5-flash-preview-05-20` (previous version)
 - `gemini-1.5-pro` (more capable, slower)
 
 Model used for sanitization and canonicalization.

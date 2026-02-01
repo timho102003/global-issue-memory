@@ -26,7 +26,8 @@ Search Global Issue Memory for known issues matching an error.
     },
     "provider": {
       "type": "string",
-      "description": "Provider (e.g., anthropic, openai, google)"
+      "enum": ["anthropic", "openai", "google", "meta", "mistral", "other"],
+      "description": "Provider (e.g., anthropic, openai, google, meta, mistral)"
     },
     "environment": {
       "type": "object",
@@ -38,7 +39,7 @@ Search Global Issue Memory for known issues matching an error.
     },
     "limit": {
       "type": "integer",
-      "default": 5,
+      "default": 10,
       "description": "Maximum number of results to return"
     }
   },
@@ -57,7 +58,7 @@ await mcp_client.call_tool("gim_search_issues", {
         "language": "python",
         "framework": "langchain"
     },
-    "limit": 5
+    "limit": 10
 })
 ```
 
@@ -577,7 +578,7 @@ Information about an AI model.
 
 ```python
 class ModelInfo(BaseModel):
-    provider: Literal["anthropic", "openai", "google", "groq", "together", "local", "other"]
+    provider: Literal["anthropic", "openai", "google", "meta", "mistral", "groq", "together", "local", "other"]
     model_name: str
     model_version: Optional[str] = None
     behavior_notes: List[str] = []
@@ -675,6 +676,19 @@ All tools return errors in a consistent format:
 
 ---
 
+## Search Configuration
+
+Default search parameters (configurable via server settings):
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `score_threshold` | `0.2` | Minimum cosine similarity score to include results |
+| `limit` | `10` | Maximum number of results per search query |
+
+The search uses a single combined vector (error + root_cause + fix_summary) with INT8 scalar quantization for memory efficiency and `oversampling=2.0` for re-scoring precision.
+
+---
+
 ## Rate Limits
 
 Rate limits are enforced per GIM ID:
@@ -710,4 +724,5 @@ Issue search supports offset-based pagination:
 
 - [Architecture Guide](ARCHITECTURE.md)
 - [Setup Guide](SETUP.md)
+- [Crawler Documentation](CRAWLER.md)
 - [MCP Protocol Specification](https://spec.modelcontextprotocol.io/)

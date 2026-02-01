@@ -231,16 +231,22 @@ tests/
 ├── test_models/
 │   ├── test_issue.py
 │   ├── test_fix_bundle.py
-│   └── test_environment.py
+│   ├── test_environment.py
+│   └── test_crawler_state.py
 ├── test_services/
 │   ├── test_sanitization/
 │   │   ├── test_secret_detector.py
 │   │   ├── test_pii_scrubber.py
 │   │   └── test_pipeline.py
-│   └── test_embedding_service.py
-└── test_tools/
-    ├── test_search_issues.py
-    └── test_submit_issue.py
+│   ├── test_embedding_service.py
+│   └── test_batch_submission_service.py
+├── test_tools/
+│   ├── test_search_issues.py
+│   └── test_submit_issue.py
+└── test_crawler/
+    ├── test_github_fetcher.py
+    ├── test_llm_extractor.py
+    └── test_state_manager.py
 ```
 
 ### Test Function Naming
@@ -507,6 +513,27 @@ await db.table("issues").insert(raw_dict)
 # Good: Validate through Pydantic first
 issue = MasterIssue(**raw_dict)  # Validates types
 await db.table("issues").insert(issue.model_dump())
+```
+
+### GitHub Crawler Contributions
+
+If working on the crawler pipeline (`src/crawler/`, `scripts/github_crawler.py`):
+
+- **State Management:** All crawler state is persisted in Supabase. Use `CrawlerState` Pydantic models for validation.
+- **Quality Scoring:** Issues must score above the quality threshold (default 0.6) to be submitted.
+- **Confidence Penalty:** Crawler-sourced issues receive a 30% confidence penalty (`CRAWLER_CONFIDENCE_PENALTY = 0.7`).
+- **Dry Run Mode:** Use `--dry-run` to extract and score without submitting. Use this during development.
+- **Adding Repositories:** Default repos are in `scripts/github_crawler.py`. Add new repos to the `DEFAULT_REPOS` list with the `owner/repo` format.
+
+```bash
+# Run crawler in dry-run mode
+python -m scripts.github_crawler --repos langchain-ai/langchain --dry-run
+
+# Check crawler status
+python -m scripts.github_crawler --status-report
+
+# Retry failed issues
+python -m scripts.github_crawler --retry-errors
 ```
 
 ## Getting Help

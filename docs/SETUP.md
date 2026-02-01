@@ -114,7 +114,7 @@ GOOGLE_API_KEY=your-google-api-key
 JWT_SECRET_KEY=your-secure-secret-key-min-32-chars
 AUTH_ISSUER=gim-mcp
 AUTH_AUDIENCE=gim-clients
-ACCESS_TOKEN_TTL_HOURS=1
+ACCESS_TOKEN_TTL_HOURS=24
 
 # OAuth 2.1 Configuration (Optional - has sensible defaults)
 OAUTH_ISSUER_URL=http://localhost:8000
@@ -130,10 +130,18 @@ HTTP_PORT=8000
 # Optional: Model Configuration
 EMBEDDING_MODEL=gemini-embedding-001
 EMBEDDING_DIMENSIONS=3072
-LLM_MODEL=gemini-2.5-flash-preview-05-20
+LLM_MODEL=gemini-3-flash-preview
+
+# Optional: GitHub Crawler
+GITHUB_TOKEN=your-github-personal-access-token  # Higher API rate limits
 
 # Optional: Rate Limiting
 DEFAULT_DAILY_SEARCH_LIMIT=100
+
+# Optional: Thresholds
+SANITIZATION_CONFIDENCE_THRESHOLD=0.85  # Min confidence to accept sanitized submissions
+SIMILARITY_MERGE_THRESHOLD=0.85          # Threshold for suggesting issue merge
+REQUIRE_AUTH_FOR_READS=false             # Require auth for read-only endpoints (gradual rollout)
 
 # Optional: Logging
 LOG_LEVEL=INFO
@@ -169,13 +177,19 @@ psql $SUPABASE_URL -f migrations/002_create_issue_tables.sql
 
 # Migration 003: OAuth tables
 psql $SUPABASE_URL -f migrations/003_create_oauth_tables.sql
+
+# Migration 004: Add GIM ID to usage events
+psql $SUPABASE_URL -f migrations/004_add_gim_id_to_usage_events.sql
+
+# Migration 005: Crawler state table
+psql $SUPABASE_URL -f migrations/005_create_crawler_state.sql
 ```
 
 **Alternative: Manual Migration via Supabase Studio**
 
 1. Go to your Supabase project dashboard
 2. Navigate to SQL Editor
-3. Copy and paste contents of each migration file (001, 002, 003)
+3. Copy and paste contents of each migration file (001 through 005)
 4. Execute each migration in order
 
 ## Running the MCP Server
@@ -618,7 +632,7 @@ pip show gim
 | `JWT_SECRET_KEY` | Yes (HTTP) | - | Secret key for JWT signing (min 32 chars) |
 | `AUTH_ISSUER` | No | `gim-mcp` | JWT token issuer identifier |
 | `AUTH_AUDIENCE` | No | `gim-clients` | JWT token audience identifier |
-| `ACCESS_TOKEN_TTL_HOURS` | No | `1` | JWT access token TTL in hours |
+| `ACCESS_TOKEN_TTL_HOURS` | No | `24` | JWT access token TTL in hours |
 | `OAUTH_ISSUER_URL` | No | `http://localhost:8000` | OAuth server issuer URL |
 | `OAUTH_AUTHORIZATION_CODE_TTL_SECONDS` | No | `600` | Auth code TTL (10 min) |
 | `OAUTH_ACCESS_TOKEN_TTL_SECONDS` | No | `3600` | OAuth access token TTL (1 hour) |
@@ -629,7 +643,11 @@ pip show gim
 | `DEFAULT_DAILY_SEARCH_LIMIT` | No | `100` | Daily search limit per GIM ID |
 | `EMBEDDING_MODEL` | No | `gemini-embedding-001` | Google embedding model |
 | `EMBEDDING_DIMENSIONS` | No | `3072` | Embedding vector dimensions |
-| `LLM_MODEL` | No | `gemini-2.5-flash-preview-05-20` | Google LLM model for sanitization |
+| `LLM_MODEL` | No | `gemini-3-flash-preview` | Google LLM model for sanitization |
+| `GITHUB_TOKEN` | No | - | GitHub PAT for crawler (higher rate limits) |
+| `SANITIZATION_CONFIDENCE_THRESHOLD` | No | `0.85` | Min confidence to accept sanitized submissions |
+| `SIMILARITY_MERGE_THRESHOLD` | No | `0.85` | Threshold for suggesting issue merge |
+| `REQUIRE_AUTH_FOR_READS` | No | `false` | Require auth for read-only endpoints |
 | `LOG_LEVEL` | No | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 
 ## Next Steps

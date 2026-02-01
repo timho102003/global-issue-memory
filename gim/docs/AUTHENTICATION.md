@@ -421,7 +421,7 @@ Configure via environment variables:
 JWT_SECRET_KEY=your-secure-secret-key-min-32-chars  # Required, min 32 chars
 AUTH_ISSUER=gim-mcp                                  # Optional, default shown
 AUTH_AUDIENCE=gim-clients                            # Optional, default shown
-ACCESS_TOKEN_TTL_HOURS=1                             # Optional, default 1 hour
+ACCESS_TOKEN_TTL_HOURS=24                            # Optional, default 24 hours
 ```
 
 **Security Note**: The `JWT_SECRET_KEY` must be:

@@ -87,7 +87,8 @@ The MCP server is the primary interface for AI assistants to interact with GIM.
 | Mode | Use Case | Endpoint | Authentication |
 |------|----------|----------|----------------|
 | **stdio** | Local CLI tools (Claude Code, Cursor) | stdin/stdout | None (local trust) |
-| **streamable-http** | Remote clients, web integrations | `POST /mcp` | OAuth2.0 Bearer Token |
+| **http** | Remote clients, web integrations | `POST /mcp` | OAuth2.0 Bearer Token |
+| **dual** | Both local and remote simultaneously | stdin/stdout + `POST /mcp` | Local: none, Remote: OAuth2.0 |
 
 #### Authentication Methods (HTTP Transport)
 
@@ -229,7 +230,7 @@ from src.config import Settings
 JWT_SECRET_KEY=your-secret-key-minimum-32-characters-long
 AUTH_ISSUER=gim-mcp
 AUTH_AUDIENCE=gim-clients
-ACCESS_TOKEN_TTL_HOURS=1
+ACCESS_TOKEN_TTL_HOURS=24
 ```
 
 **Auth Endpoints:**
@@ -280,7 +281,7 @@ python -m src.server --transport http --no-auth
 JWT_SECRET_KEY=your-32-char-minimum-secret-key
 AUTH_ISSUER=gim-mcp
 AUTH_AUDIENCE=gim-clients
-ACCESS_TOKEN_TTL_HOURS=1
+ACCESS_TOKEN_TTL_HOURS=24
 
 # Transport configuration
 TRANSPORT_MODE=http  # or stdio
@@ -334,14 +335,14 @@ Two-layer architecture for privacy-safe data processing.
 #### Layer 2: LLM-Based Intelligent Sanitization
 
 **LLM Sanitizer** (`llm_sanitizer.py`)
-- Uses Google Gemini (gemini-2.5-flash-preview) for context-aware scrubbing
+- Uses Google Gemini (gemini-3-flash-preview) for context-aware scrubbing
 - Catches edge cases missed by regex
 - Ensures natural language clarity while removing sensitive info
 - Validates output from Layer 1
 
 **Pipeline Orchestrator** (`pipeline.py`)
 - Coordinates all sanitization stages
-- Calculates confidence scores (must be >0.95 to accept)
+- Calculates confidence scores (must exceed configurable threshold, default 0.85)
 - Rejects submissions if sanitization fails
 - Generates embeddings after sanitization
 
@@ -533,6 +534,67 @@ class MCPTool:
 - Confidence score updated based on confirmations
 - Child count incremented
 
+### 8. GitHub Issue Crawler (`src/crawler/`, `scripts/github_crawler.py`)
+
+**Status:** Implemented (added 2026-01-30)
+
+The GitHub crawler automatically harvests resolved issues from popular open-source repositories and submits them to GIM after extraction and quality scoring.
+
+#### Architecture
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    CRAWLER PIPELINE                           │
+│                                                              │
+│  ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌────────┐│
+│  │ Discover │───►│  Fetch   │───►│ Extract  │───►│ Submit ││
+│  │ (GitHub) │    │ (Details)│    │ (Gemini) │    │ (GIM)  ││
+│  └──────────┘    └──────────┘    └──────────┘    └────────┘│
+│       │               │               │               │     │
+│       ▼               ▼               ▼               ▼     │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              State Manager (Supabase)                 │   │
+│  │  PENDING → FETCHED → EXTRACTED → SUBMITTED           │   │
+│  │                        ↓                              │   │
+│  │               DROPPED / ERROR                         │   │
+│  └──────────────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────────────┘
+```
+
+#### Pipeline Phases
+
+1. **Discover** - Finds closed issues with `state_reason='completed'` using PyGithub
+2. **Fetch** - Retrieves issue details, comments (max 20), and linked PR information
+3. **Extract** - Uses Gemini LLM to extract error, root_cause, fix_summary, and fix_steps; scores quality
+4. **Submit** - Submits to GIM via batch submission service with per-issue error isolation
+
+#### Key Design Decisions
+
+- **Confidence Penalty:** Crawler-sourced issues receive a 30% confidence penalty (`CRAWLER_CONFIDENCE_PENALTY = 0.7`) since they lack direct user verification
+- **Quality Threshold:** Issues must score above a configurable quality threshold (default 0.6) to be submitted
+- **Drop Reasons:** Issues can be dropped for: `NOT_A_FIX`, `NO_ERROR_MESSAGE`, `EXTRACTION_FAILED`, `LOW_QUALITY`, `SANITIZATION_FAILED`
+- **State Persistence:** All pipeline state is stored in Supabase (`crawler_state` table) for retry capability
+- **Rate Limiting:** GitHub API calls are guarded with a 100-issue threshold per batch
+- **Gemini Retry:** LLM extraction includes retry logic for transient API failures
+
+#### Default Repositories (47+)
+
+The crawler targets popular repositories across categories:
+- **LLM/AI:** langchain, litellm, openai, anthropic-sdk, llamaindex, crewAI
+- **Vector DBs:** qdrant, chroma, weaviate, milvus, pinecone
+- **Frontend:** next.js, react, vue, svelte, astro, nuxt, remix, TanStack
+- **Backend:** fastapi, flask, express, django, nestjs, hono
+- **ML:** pytorch, tensorflow, transformers, scikit-learn, jax
+
+#### CI/CD Integration
+
+The crawler runs as a GitHub Actions workflow (`.github/workflows/gim-crawler.yml`):
+- Scheduled daily at 2:00 AM UTC
+- Manual trigger with configurable repos, max_issues, and dry_run options
+- Uses `--limit 1000` default for batch pagination
+
+See [Crawler Documentation](CRAWLER.md) for CLI usage and configuration.
+
 ## Configuration Management
 
 **Config System** (`src/config.py`)
@@ -550,7 +612,7 @@ class Settings(BaseSettings):
     # AI Services
     google_api_key: SecretStr
     embedding_model: str = "gemini-embedding-001"
-    llm_model: str = "gemini-2.5-flash-preview-05-20"
+    llm_model: str = "gemini-3-flash-preview"
 
     # Server
     log_level: str = "INFO"
@@ -883,15 +945,18 @@ CREATE TABLE oauth_refresh_tokens (
 
 - Complete canonicalization engine with root cause taxonomy
 - Full search implementation with ranking algorithm
-- Confidence scoring algorithm
+- Confidence scoring algorithm refinement
 - Stale issue detection
 - Private workspaces for teams
 - Sandbox execution for verification
 - IDE plugins (Cursor, VS Code)
 - Community moderation tools
+- Crawler NER-based entity recognition for PII detection
+- Crawler anomaly detection for bulk submissions
 
 ## References
 
 - [API Reference](API.md)
 - [Setup Guide](SETUP.md)
+- [Crawler Documentation](CRAWLER.md)
 - [Deployment Guide](DEPLOYMENT.md)
