@@ -33,7 +33,9 @@ export default function DocsLayout({
         </div>
 
         {/* Mobile navigation */}
-        <DocsMobileNav />
+        <div className="relative z-20 mb-6">
+          <DocsMobileNav />
+        </div>
 
         {/* Two-column layout */}
         <div className="flex gap-10 lg:gap-14">
