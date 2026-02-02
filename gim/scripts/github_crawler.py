@@ -67,7 +67,13 @@ DEFAULT_REPOS = [
     "weaviate/weaviate",
     "milvus-io/pymilvus",
     "pinecone-io/pinecone-python-client",
-    # -- AI-Assisted Dev Tools --
+    # -- AI Agent Frameworks (additional) --
+    "pydantic/pydantic-ai",
+    "google/adk-python",
+    # -- Vibe Coding / AI Coding Agents --
+    "openclaw/openclaw",
+    "stackblitz-labs/bolt.diy",
+    "dyad-sh/dyad",
     "continuedev/continue",
     "Aider-AI/aider",
     "openinterpreter/open-interpreter",
@@ -102,6 +108,21 @@ DEFAULT_REPOS = [
     "sqlalchemy/sqlalchemy",
     "celery/celery",
     "encode/httpx",
+    # -- MCP Ecosystem --
+    "modelcontextprotocol/python-sdk",
+    "modelcontextprotocol/typescript-sdk",
+    # -- Workflow Automation --
+    "n8n-io/n8n",
+    # -- RAG / Web Data --
+    "infiniflow/ragflow",
+    "firecrawl/firecrawl",
+    # -- AI SDKs --
+    "vercel/ai",
+    "mastra-ai/mastra",
+    # -- UI Frameworks & Components --
+    "shadcn-ui/ui",
+    "tailwindlabs/tailwindcss",
+    "reflex-dev/reflex",
     # -- Database Clients / ORMs --
     "prisma/prisma",
     "drizzle-team/drizzle-orm",

@@ -25,7 +25,7 @@ python -m scripts.github_crawler [OPTIONS]
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
-| `--repos REPO [REPO ...]` | string list | 47+ popular repos | Repos to crawl (space-separated) |
+| `--repos REPO [REPO ...]` | string list | 60+ popular repos | Repos to crawl (space-separated) |
 | `--since DATE` | ISO date | Auto-resume from last crawl | Only issues closed after this date |
 | `--max-issues N` | int | `50` | Max issues per repo during discovery |
 | `--limit N` | int | `100` | Max records per phase (fetch/extract) |
@@ -165,14 +165,19 @@ The multi-signal filter (`src/crawler/issue_filter.py`) applies these checks in 
 
 ## Default Repositories
 
-The crawler targets 47+ repositories across these categories:
+The crawler targets 60+ repositories across these categories:
 
 | Category | Repositories |
 |----------|-------------|
-| **LLM/AI Agent** | langchain, litellm, openai, anthropic-sdk, llamaindex, crewAI, autogen, haystack, semantic-kernel, ollama, vllm |
+| **LLM/AI Agent** | langchain, litellm, openai, openai-agents, anthropic-sdk, llamaindex, crewAI, autogen, haystack, semantic-kernel, ollama, vllm, pydantic-ai, google-adk-python |
 | **Vector DBs** | qdrant, chroma, weaviate, pymilvus, pinecone |
-| **AI Dev Tools** | continue, aider, open-interpreter |
+| **Vibe Coding / AI Dev Tools** | openclaw, bolt.diy, dyad, continue, aider, open-interpreter |
+| **MCP Ecosystem** | modelcontextprotocol/python-sdk, modelcontextprotocol/typescript-sdk |
+| **Workflow Automation** | n8n |
+| **RAG / Web Data** | ragflow, firecrawl |
+| **AI SDKs** | vercel/ai, mastra |
 | **Frontend** | next.js, react, vue, svelte-kit, astro, nuxt, remix, TanStack (query, router, table) |
+| **UI Frameworks** | shadcn-ui, tailwindcss, reflex |
 | **Backend** | fastapi, flask, express, django, nestjs, hono, elysia |
 | **ML** | pytorch, tensorflow, transformers, scikit-learn, jax |
 | **Python** | requests, pydantic, sqlalchemy, celery, httpx |
