@@ -142,33 +142,9 @@ class TestSubmitIssueTool:
 
     @pytest.mark.asyncio
     async def test_submit_new_issue(self) -> None:
-        """Test submitting a new master issue."""
-        with patch("src.tools.gim_submit_issue.run_sanitization_pipeline") as mock_sanitize, \
-             patch("src.tools.gim_submit_issue.quick_sanitize") as mock_quick, \
-             patch("src.tools.gim_submit_issue.generate_combined_embedding") as mock_embed, \
-             patch("src.tools.gim_submit_issue.search_similar_issues") as mock_search, \
-             patch("src.tools.gim_submit_issue.insert_record") as mock_insert, \
-             patch("src.tools.gim_submit_issue.upsert_issue_vectors") as mock_upsert, \
-             patch("src.tools.gim_submit_issue.get_settings") as mock_settings:
-
-            mock_settings.return_value.similarity_merge_threshold = 0.85
-            mock_settings.return_value.sanitization_confidence_threshold = 0.95
-
-            # Mock sanitization result
-            mock_result = AsyncMock()
-            mock_result.sanitized_error = "Sanitized error"
-            mock_result.sanitized_context = ""
-            mock_result.sanitized_mre = ""
-            mock_result.confidence_score = 0.9
-            mock_result.llm_sanitization_used = True
-            mock_result.warnings = []
-            mock_sanitize.return_value = mock_result
-
-            mock_quick.return_value = ("Sanitized text", [])
-            mock_embed.return_value = [0.0] * 3072
-            mock_search.return_value = []  # No similar issues
-            mock_insert.return_value = {"id": "test-id"}
-            mock_upsert.return_value = None
+        """Test submitting an issue returns submission_id immediately."""
+        with patch("src.services.submission_worker.schedule_submission") as mock_schedule:
+            mock_schedule.return_value = "test-submission-id"
 
             result = await submit_execute({
                 "error_message": "Test error",
@@ -181,7 +157,9 @@ class TestSubmitIssueTool:
             parsed = json.loads(result[0].text)
 
             assert parsed["success"] is True
-            assert parsed["type"] == "master_issue"
+            assert parsed["submission_id"] == "test-submission-id"
+            assert "Processing in background" in parsed["message"]
+            mock_schedule.assert_called_once()
 
 
 class TestConfirmFixTool:

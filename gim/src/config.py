@@ -157,6 +157,20 @@ class Settings(BaseSettings):
         description="Similarity threshold for suggesting issue merge"
     )
 
+    # Async submission
+    max_submission_retries: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+        description="Max retry attempts for background submission"
+    )
+    submission_retry_base_delay: float = Field(
+        default=2.0,
+        ge=0.5,
+        le=30.0,
+        description="Base delay in seconds for exponential backoff"
+    )
+
     model_config = {
         "env_file": ".env",
         "env_file_encoding": "utf-8",

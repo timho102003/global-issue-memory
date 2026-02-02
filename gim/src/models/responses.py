@@ -58,6 +58,22 @@ class GetFixBundleResponse(BaseModel):
     verification_count: int = Field(ge=0)
 
 
+class SubmitIssueAcceptedResponse(BaseModel):
+    """Immediate response for async gim_submit_issue.
+
+    Returned immediately after validation. Processing happens in background.
+
+    Attributes:
+        success: Whether the submission was accepted for processing.
+        message: Human-readable status message.
+        submission_id: Unique ID to track this submission.
+    """
+
+    success: bool
+    message: str
+    submission_id: str
+
+
 class SubmitIssueResponse(BaseModel):
     """Response model for gim_submit_issue tool.
 

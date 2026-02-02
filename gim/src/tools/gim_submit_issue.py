@@ -1,27 +1,10 @@
 """GIM Submit Issue Tool - Submit a resolved issue to GIM."""
 
-import uuid
-from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 
-from src.config import get_settings
-from src.db.supabase_client import insert_record, query_records
-from src.db.qdrant_client import upsert_issue_vectors, search_similar_issues
-from src.exceptions import (
-    GIMError,
-    SupabaseError,
-    QdrantError,
-    EmbeddingError,
-    SanitizationError,
-    ValidationError,
-)
+from src.db.supabase_client import insert_record
+from src.exceptions import ValidationError
 from src.logging_config import get_logger, set_request_context
-from src.services.embedding_service import generate_combined_embedding
-from src.services.sanitization.pipeline import run_sanitization_pipeline, quick_sanitize
-from src.services.sanitization.code_synthesizer import run_code_synthesis
-from src.services.contribution_classifier import classify_contribution_type
-from src.services.environment_extractor import extract_environment_info
-from src.services.model_parser import parse_model_info
 from src.tools.base import ToolDefinition, create_text_response, create_error_response
 
 
@@ -244,42 +227,31 @@ file paths, and domain-specific names are automatically removed.""",
 async def execute(arguments: Dict[str, Any]) -> List:
     """Execute the submit issue tool.
 
+    Validates required fields synchronously, then dispatches to a background
+    worker for the heavy processing pipeline (sanitization, embedding, dedup,
+    DB writes, code synthesis). Returns immediately with a submission_id.
+
     Args:
         arguments: Tool arguments.
 
     Returns:
-        List: MCP response content.
+        List: MCP response content with submission_id.
     """
+    from src.services.submission_worker import schedule_submission
+
     # Set request context for tracing
     request_id = set_request_context()
     logger.info(f"Processing issue submission (request_id={request_id})")
 
     try:
-        # Extract required arguments
+        # Validate required fields (synchronous — fails fast)
         error_message = arguments.get("error_message", "")
-        error_context = arguments.get("error_context", "")
-        code_snippet = arguments.get("code_snippet", "")
         root_cause = arguments.get("root_cause", "")
         fix_summary = arguments.get("fix_summary", "")
         fix_steps = arguments.get("fix_steps", [])
-        code_changes = arguments.get("code_changes", [])
-        environment_actions = arguments.get("environment_actions", [])
-        verification_steps = arguments.get("verification_steps", [])
-        model = arguments.get("model")
         provider = arguments.get("provider")
-        language = arguments.get("language")
-        framework = arguments.get("framework")
-        gim_id = arguments.get("gim_id")
+        model = arguments.get("model")
 
-        # New fields
-        language_version = arguments.get("language_version")
-        framework_version = arguments.get("framework_version")
-        os_info = arguments.get("os")
-        model_behavior_notes = arguments.get("model_behavior_notes", [])
-        validation_success = arguments.get("validation_success")
-        validation_notes = arguments.get("validation_notes")
-
-        # Validate required fields
         if not error_message:
             raise ValidationError("error_message is required", field="error_message")
         if not root_cause:
@@ -293,284 +265,20 @@ async def execute(arguments: Dict[str, Any]) -> List:
         if not model:
             raise ValidationError("model is required (e.g., 'claude-sonnet-4-20250514')", field="model")
 
-        # Run sanitization pipeline
-        logger.debug("Running sanitization pipeline")
-        try:
-            sanitization_result = await run_sanitization_pipeline(
-                error_message=error_message,
-                error_context=error_context,
-                code_snippet=code_snippet,
-                use_llm=True,
-            )
-        except Exception as e:
-            logger.warning(f"Sanitization pipeline error: {e}")
-            raise SanitizationError(
-                f"Failed to sanitize content: {str(e)}",
-                stage="pipeline",
-                original_error=e,
-            )
+        # Dispatch to background worker
+        submission_id = schedule_submission(arguments, request_id)
 
-        # Check if sanitization result indicates low confidence
-        if not sanitization_result.success:
-            raise SanitizationError(
-                "Sanitization confidence too low to safely store this submission. "
-                f"Confidence: {sanitization_result.confidence_score:.2f}",
-                stage="confidence_check",
-            )
-
-        # Also sanitize root cause and fix summary
-        sanitized_root_cause, _ = quick_sanitize(root_cause)
-        sanitized_fix_summary, _ = quick_sanitize(fix_summary)
-        sanitized_fix_steps = [quick_sanitize(step)[0] for step in fix_steps]
-
-        # Sanitize structured data fields before DB write
-        code_changes = _sanitize_structured_data(code_changes)
-        environment_actions = _sanitize_structured_data(environment_actions)
-        verification_steps = _sanitize_structured_data(verification_steps)
-
-        # Generate combined embedding for similarity search
-        logger.debug("Generating combined embedding")
-        try:
-            embedding = await generate_combined_embedding(
-                error_message=sanitization_result.sanitized_error,
-                root_cause=sanitized_root_cause,
-                fix_summary=sanitized_fix_summary,
-            )
-        except Exception as e:
-            logger.error(f"Embedding generation error: {e}")
-            raise EmbeddingError(
-                f"Failed to generate embeddings: {str(e)}",
-                original_error=e,
-            )
-
-        # Check for similar existing issues
-        settings = get_settings()
-        similar_issues = await search_similar_issues(
-            query_vector=embedding,
-            limit=5,
-            score_threshold=settings.similarity_merge_threshold,
+        from src.models.responses import SubmitIssueAcceptedResponse
+        response = SubmitIssueAcceptedResponse(
+            success=True,
+            message="Issue submission accepted. Processing in background.",
+            submission_id=submission_id,
         )
-
-        # Determine if this should be a new master issue or child issue
-        is_child_issue = False
-        parent_issue_id = None
-
-        if similar_issues and similar_issues[0]["score"] >= settings.similarity_merge_threshold:
-            # High similarity - create child issue
-            is_child_issue = True
-            parent_issue_id = similar_issues[0]["payload"].get("issue_id")
-
-        # Create issue record
-        issue_id = str(uuid.uuid4())
-
-        if is_child_issue and parent_issue_id:
-            # Classify contribution type
-            contribution_type = classify_contribution_type(
-                error_message=sanitization_result.sanitized_error,
-                root_cause=sanitized_root_cause,
-                fix_steps=sanitized_fix_steps,
-                environment_actions=environment_actions,
-                model_behavior_notes=model_behavior_notes,
-                validation_success=validation_success,
-            )
-
-            # Extract environment info
-            environment_info = extract_environment_info(
-                language=language,
-                framework=framework,
-                error_context=error_context,
-                language_version=language_version,
-                framework_version=framework_version,
-                os=os_info,
-            )
-
-            # Parse model info
-            model_provider, model_name, model_version = parse_model_info(
-                model=model,
-                provider=provider,
-            )
-
-            # Create child issue with full metadata
-            logger.info(f"Creating child issue linked to {parent_issue_id}")
-            await insert_record(
-                table="child_issues",
-                data={
-                    "id": issue_id,
-                    "master_issue_id": parent_issue_id,
-                    "original_error": sanitization_result.sanitized_error,
-                    "original_context": sanitization_result.sanitized_context,
-                    "code_snippet": sanitization_result.sanitized_mre,
-                    "model": model,
-                    "provider": model_provider,
-                    "language": language,
-                    "framework": framework,
-                    "submitted_at": datetime.now(timezone.utc).isoformat(),
-                    # Rich metadata fields
-                    "metadata": {
-                        "contribution_type": contribution_type.value,
-                        "environment": environment_info,
-                        "model_name": model_name,
-                        "model_version": model_version,
-                        "model_behavior_notes": model_behavior_notes,
-                        "validation_success": validation_success,
-                        "validation_notes": validation_notes,
-                    },
-                },
-            )
-
-            result_type = "child_issue"
-            result_id = issue_id
-            linked_to = parent_issue_id
-
-        else:
-            # Create master issue
-            root_cause_category = _classify_root_cause(sanitized_root_cause)
-
-            logger.info(f"Creating master issue with category {root_cause_category}")
-            await insert_record(
-                table="master_issues",
-                data={
-                    "id": issue_id,
-                    "canonical_error": sanitization_result.sanitized_error,
-                    "sanitized_context": sanitization_result.sanitized_context,
-                    "sanitized_mre": sanitization_result.sanitized_mre,
-                    "root_cause": sanitized_root_cause,
-                    "root_cause_category": root_cause_category,
-                    "model_provider": provider,
-                    "language": language,
-                    "framework": framework,
-                    "verification_count": 1,  # Initial verification
-                    "created_at": datetime.now(timezone.utc).isoformat(),
-                    "last_verified_at": datetime.now(timezone.utc).isoformat(),
-                },
-            )
-
-            # Store vector in Qdrant
-            await upsert_issue_vectors(
-                issue_id=issue_id,
-                vector=embedding,
-                payload={
-                    "issue_id": issue_id,
-                    "root_cause_category": root_cause_category,
-                    "model_provider": provider,
-                    "status": "active",
-                },
-            )
-
-            result_type = "master_issue"
-            result_id = issue_id
-            linked_to = None
-
-        # Run code synthesis (non-blocking — failure does not block submission)
-        synthesis_result = None
-        try:
-            logger.debug("Running code synthesis pipeline")
-            synthesis_result = await run_code_synthesis(
-                error_message=sanitization_result.sanitized_error,
-                error_context=sanitization_result.sanitized_context,
-                code_snippet=sanitization_result.sanitized_mre,
-                root_cause=sanitized_root_cause,
-                fix_steps=sanitized_fix_steps,
-                code_changes=code_changes,
-            )
-            if synthesis_result.success:
-                logger.debug("Code synthesis completed successfully")
-            else:
-                logger.warning(f"Code synthesis partial failure: {synthesis_result.error}")
-        except Exception as e:
-            logger.warning(f"Code synthesis pipeline error (non-blocking): {e}")
-
-        # Create fix bundle
-        fix_bundle_id = str(uuid.uuid4())
-        logger.debug(f"Creating fix bundle {fix_bundle_id}")
-
-        # Use synthesized results if available, otherwise fallback to sanitized values
-        final_fix_steps = (
-            synthesis_result.synthesized_fix_steps
-            if synthesis_result and synthesis_result.synthesized_fix_steps
-            else sanitized_fix_steps
-        )
-        final_code_fix = (
-            synthesis_result.fix_snippet
-            if synthesis_result and synthesis_result.fix_snippet
-            else None
-        )
-        final_patch_diff = (
-            synthesis_result.patch_diff
-            if synthesis_result and synthesis_result.patch_diff
-            else None
-        )
-
-        fix_bundle_data: Dict[str, Any] = {
-            "id": fix_bundle_id,
-            "master_issue_id": issue_id if not is_child_issue else parent_issue_id,
-            "summary": sanitized_fix_summary,
-            "fix_steps": final_fix_steps,
-            "code_changes": code_changes,
-            "environment_actions": environment_actions,
-            "verification_steps": verification_steps,
-            "confidence_score": sanitization_result.confidence_score,
-            "verification_count": 1,
-            "created_at": datetime.now(timezone.utc).isoformat(),
-            "last_confirmed_at": datetime.now(timezone.utc).isoformat(),
-        }
-        if final_code_fix:
-            fix_bundle_data["code_fix"] = final_code_fix
-        if final_patch_diff:
-            fix_bundle_data["patch_diff"] = final_patch_diff
-
-        await insert_record(
-            table="fix_bundles",
-            data=fix_bundle_data,
-        )
-
-        # Log submission event (non-critical, don't fail on error)
-        await _log_submission_event(
-            issue_id=result_id,
-            is_child=is_child_issue,
-            model=model,
-            provider=provider,
-            gim_id=gim_id,
-        )
-
-        logger.info(f"Successfully submitted {result_type} {result_id}")
-        return create_text_response({
-            "success": True,
-            "message": f"Issue submitted successfully as {result_type}",
-            "issue_id": result_id,
-            "fix_bundle_id": fix_bundle_id,
-            "type": result_type,
-            "linked_to": linked_to,
-            "sanitization": {
-                "confidence_score": sanitization_result.confidence_score,
-                "llm_used": sanitization_result.llm_sanitization_used,
-                "warnings": sanitization_result.warnings,
-            },
-        })
+        return create_text_response(response.model_dump())
 
     except ValidationError as e:
         logger.warning(f"Validation error: {e.message}")
         return create_error_response(f"Validation error: {e.message}")
-
-    except SanitizationError as e:
-        logger.warning(f"Sanitization error: {e.message}")
-        return create_error_response(f"Sanitization error: {e.message}")
-
-    except EmbeddingError as e:
-        logger.error(f"Embedding error: {e.message}")
-        return create_error_response(f"Embedding error: {e.message}")
-
-    except SupabaseError as e:
-        logger.error(f"Database error: {e.message}")
-        return create_error_response(f"Database error: {e.message}")
-
-    except QdrantError as e:
-        logger.error(f"Vector DB error: {e.message}")
-        return create_error_response(f"Vector storage error: {e.message}")
-
-    except GIMError as e:
-        logger.error(f"GIM error: {e.message}")
-        return create_error_response(f"Error: {e.message}")
 
     except Exception as e:
         logger.exception("Unexpected error during submission")

@@ -76,22 +76,29 @@ class TestSecretStrConfig:
 
 
 class TestResponseInjectionPrevention:
-    """Test that response injection via **arguments is prevented."""
+    """Test that submit response does not echo back request arguments."""
 
-    def test_allowed_fields_frozenset_exists(self) -> None:
-        """Test that _ALLOWED_SUBMIT_RESPONSE_FIELDS is defined."""
-        from src.server import _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert isinstance(_ALLOWED_SUBMIT_RESPONSE_FIELDS, frozenset)
-        assert "error_message" in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "root_cause" in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "fix_summary" in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "language" in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "framework" in _ALLOWED_SUBMIT_RESPONSE_FIELDS
+    def test_submit_response_contains_only_safe_fields(self) -> None:
+        """Test that async submit response has only success, message, submission_id."""
+        from src.models.responses import SubmitIssueAcceptedResponse
+        response = SubmitIssueAcceptedResponse(
+            success=True,
+            message="Accepted",
+            submission_id="test-id",
+        )
+        fields = set(response.model_dump().keys())
+        assert fields == {"success", "message", "submission_id"}
 
-    def test_disallowed_fields_not_in_set(self) -> None:
-        """Test that dangerous fields are not in allowed set."""
-        from src.server import _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "id" not in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "master_issue_id" not in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "created_at" not in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-        assert "access_token" not in _ALLOWED_SUBMIT_RESPONSE_FIELDS
+    def test_submit_response_excludes_request_arguments(self) -> None:
+        """Test that no request arguments are echoed in the response model."""
+        from src.models.responses import SubmitIssueAcceptedResponse
+        response = SubmitIssueAcceptedResponse(
+            success=True,
+            message="Accepted",
+            submission_id="test-id",
+        )
+        data = response.model_dump()
+        # None of these request-argument keys should appear in the response
+        for dangerous_key in ["error_message", "root_cause", "fix_summary",
+                              "id", "master_issue_id", "created_at", "access_token"]:
+            assert dangerous_key not in data

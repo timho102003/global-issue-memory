@@ -357,11 +357,8 @@ class TestSubmitIssueEndpoint:
         mock_text = MagicMock()
         mock_text.text = json.dumps({
             "success": True,
-            "message": "Issue submitted successfully",
-            "issue_id": sample_uuid,
-            "fix_bundle_id": str(uuid4()),
-            "type": "master_issue",
-            "linked_to": None,
+            "message": "Issue submission accepted. Processing in background.",
+            "submission_id": sample_uuid,
         })
 
         mock_claims = MagicMock()
@@ -389,9 +386,10 @@ class TestSubmitIssueEndpoint:
                         headers={"Authorization": "Bearer test-token"},
                     )
 
-                    assert response.status_code == 201
+                    assert response.status_code == 202
                     data = response.json()
-                    assert "id" in data
+                    assert data["success"] is True
+                    assert "submission_id" in data
 
 
 class TestConfirmFixEndpoint:

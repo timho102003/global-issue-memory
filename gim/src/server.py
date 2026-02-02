@@ -139,12 +139,6 @@ logger = logging.getLogger(__name__)
 _template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "templates")
 _jinja_env = Environment(loader=FileSystemLoader(_template_dir), autoescape=True)
 
-# Only include explicitly allowed fields from request arguments in submit-issue responses.
-# Prevents response injection via attacker-supplied keys overwriting response fields.
-_ALLOWED_SUBMIT_RESPONSE_FIELDS = frozenset({
-    "error_message", "root_cause", "fix_summary", "language", "framework",
-})
-
 # In-memory cache for dashboard stats to avoid repeated expensive queries.
 _dashboard_stats_cache: dict = {}
 _DASHBOARD_CACHE_TTL_SECONDS = 60
@@ -1937,18 +1931,13 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
                     status_code=400,
                 )
 
-            safe_fields = {
-                k: v for k, v in arguments.items()
-                if k in _ALLOWED_SUBMIT_RESPONSE_FIELDS
-            }
             return JSONResponse(
                 content={
-                    "id": tool_response.get("issue_id"),
-                    "master_issue_id": tool_response.get("linked_to") or tool_response.get("issue_id"),
-                    "created_at": "",
-                    **safe_fields,
+                    "success": True,
+                    "message": tool_response.get("message"),
+                    "submission_id": tool_response.get("submission_id"),
                 },
-                status_code=201,
+                status_code=202,
             )
         except Exception as e:
             logger.error(f"Submit issue API error: {e}")
