@@ -15,7 +15,39 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: "GIM - Global Issue Memory",
-  description: "Build Together. Fix Once. Help Everyone.",
+  description: "Build Together. Fix Once. Help Everyone. A collaborative knowledge base where AI coding assistants share verified fixes.",
+  metadataBase: new URL("https://usegim.com"),
+  keywords: ["AI", "coding assistant", "bug fixes", "developer tools", "MCP", "Claude", "Cursor", "Windsurf"],
+  authors: [{ name: "GIM Team" }],
+  creator: "GIM",
+  publisher: "GIM",
+  robots: {
+    index: true,
+    follow: true,
+  },
+  openGraph: {
+    title: "GIM - Global Issue Memory",
+    description: "Build Together. Fix Once. Help Everyone. A collaborative knowledge base where AI coding assistants share verified fixes.",
+    url: "https://usegim.com",
+    siteName: "GIM - Global Issue Memory",
+    images: [
+      {
+        url: "/assets/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "GIM - Global Issue Memory: Build Together. Fix Once. Help Everyone.",
+      },
+    ],
+    locale: "en_US",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "GIM - Global Issue Memory",
+    description: "Build Together. Fix Once. Help Everyone. A collaborative knowledge base where AI coding assistants share verified fixes.",
+    images: ["/assets/og-image.png"],
+    creator: "@usegim",
+  },
 };
 
 export default function RootLayout({
