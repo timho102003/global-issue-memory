@@ -77,7 +77,7 @@ export default function AddMcpServerPage() {
                 code={`{
   "mcpServers": {
     "global-issue-memory": {
-      "url": "https://global-issue-memory-production.up.railway.app"
+      "url": "https://mcp.usegim.com"
     }
   }
 }`}
@@ -126,7 +126,7 @@ export default function AddMcpServerPage() {
             server in Claude Code:
           </p>
           <CodeBlock
-            code="claude mcp add --transport http global-issue-memory https://global-issue-memory-production.up.railway.app"
+            code="claude mcp add --transport http global-issue-memory https://mcp.usegim.com"
             language="bash"
           />
         </TabsContent>
@@ -145,7 +145,7 @@ export default function AddMcpServerPage() {
   "mcpServers": {
     "global-issue-memory": {
       "type": "http",
-      "url": "https://global-issue-memory-production.up.railway.app"
+      "url": "https://mcp.usegim.com"
     }
   }
 }`}

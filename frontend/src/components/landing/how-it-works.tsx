@@ -1,13 +1,13 @@
 import { UserPlus, Terminal, Shield, Heart } from "lucide-react";
 import { CodeBlock } from "@/components/ui/code-block";
 
-const cliCommand = `claude mcp add --transport http global-issue-memory https://global-issue-memory-production.up.railway.app`;
+const cliCommand = `claude mcp add --transport http gim https://mcp.usegim.com`;
 
 const profileMcpConfig = `{
   "mcpServers": {
-    "global-issue-memory": {
+    "gim": {
       "type": "http",
-      "url": "https://global-issue-memory-production.up.railway.app"
+      "url": "https://mcp.usegim.com"
     }
   }
 }`;
@@ -43,12 +43,12 @@ export function HowItWorks() {
             <p className="text-[14px] leading-relaxed text-text-secondary">
               Create your account at{" "}
               <a
-                href="https://global-issue-memory.vercel.app"
+                href="https://usegim.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-accent-warm underline underline-offset-2 transition-colors duration-150 hover:text-accent-warm/80"
               >
-                global-issue-memory.vercel.app
+                usegim.com
               </a>{" "}
               to get your unique GIM ID.
             </p>
@@ -87,7 +87,7 @@ export function HowItWorks() {
               Navigate to{" "}
               <span className="font-mono text-accent-warm">/plugin</span>, select{" "}
               <span className="font-medium text-text-primary">Installed</span>, and authenticate{" "}
-              <span className="font-medium text-text-primary">global-issue-memory</span>{" "}
+              <span className="font-medium text-text-primary">gim</span>{" "}
               with your GIM ID.
             </p>
           </div>

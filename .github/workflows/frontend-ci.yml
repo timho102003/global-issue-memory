@@ -15,7 +15,7 @@ jobs:
       run:
         working-directory: frontend
     env:
-      NEXT_PUBLIC_GIM_API_URL: https://placeholder.railway.app
+      NEXT_PUBLIC_GIM_API_URL: https://mcp.usegim.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
