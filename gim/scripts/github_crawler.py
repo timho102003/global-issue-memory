@@ -128,6 +128,9 @@ DEFAULT_REPOS = [
     "drizzle-team/drizzle-orm",
     "supabase/supabase-js",
     "supabase/supabase-py",
+    # -- AI Bot --
+    "HKUDS/nanobot",
+    "openclaw/openclaw"
 ]
 
 
