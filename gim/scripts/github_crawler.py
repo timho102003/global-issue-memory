@@ -12,7 +12,10 @@ Options:
                               Run specific phase (default: full)
     --status-report           Print status counts and exit
     --retry-errors            Retry ERROR state issues
+    --revisit-dropped         Revisit DROPPED issues to check if resolved
+    --revisit-days N          Days threshold for revisit (default: 5)
     --quality-threshold F     Quality score threshold (default: 0.6)
+    --limit N                 Max records per phase (default: 100)
 """
 
 import argparse
@@ -27,10 +30,13 @@ from src.crawler.issue_filter import filter_issue
 from src.crawler.llm_extractor import extract_issue_data, score_quality
 from src.crawler.state_manager import (
     create_pending_issues,
+    get_dropped_issues_for_revisit,
     get_issues_by_status,
     get_last_closed_date,
     get_retryable_errors,
     get_stats,
+    reset_dropped_to_pending,
+    update_last_revisited_at,
     update_to_dropped,
     update_to_error,
     update_to_extracted,
@@ -411,6 +417,91 @@ async def run_retry_errors() -> dict:
     return counts
 
 
+async def run_revisit_dropped(
+    days_threshold: int = 5,
+    limit: int = 100,
+) -> dict:
+    """Revisit dropped issues to check if they've been resolved on GitHub.
+
+    For each dropped issue older than the threshold:
+    1. Re-fetch from GitHub to get current state
+    2. Re-apply filter logic
+    3. If passes: reset to PENDING for reprocessing through pipeline
+    4. If still fails: update last_revisited_at to now
+
+    Args:
+        days_threshold: Number of days since last revisit before checking again.
+            Must be at least 1.
+        limit: Maximum issues to revisit per run. Must be at least 1.
+
+    Returns:
+        dict: Counts of reset, still_dropped, and errored issues.
+
+    Raises:
+        ValueError: If days_threshold or limit is less than 1.
+    """
+    if days_threshold < 1:
+        raise ValueError("days_threshold must be at least 1")
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+
+    dropped = await get_dropped_issues_for_revisit(
+        days_threshold=days_threshold,
+        limit=limit,
+    )
+    logger.info(f"Revisiting {len(dropped)} dropped issues...")
+
+    counts = {"reset": 0, "still_dropped": 0, "errored": 0}
+
+    for record in dropped:
+        record_id = record["id"]
+        repo = record["repo"]
+        issue_number = record["issue_number"]
+
+        try:
+            # Re-fetch issue details from GitHub
+            details = await fetch_issue_details(repo, issue_number)
+
+            # Re-apply filter logic
+            passes, drop_reason = filter_issue(
+                state_reason=record.get("state_reason"),
+                has_merged_pr=details.get("has_merged_pr", False),
+                issue_labels=record.get("issue_labels", []),
+                issue_body=details.get("raw_issue_body", ""),
+                pr_additions=details.get("pr_additions", 0),
+            )
+
+            if passes:
+                # Issue now qualifies - reset to PENDING for full pipeline
+                await reset_dropped_to_pending(record_id)
+                counts["reset"] += 1
+                logger.info(f"Reset {repo}#{issue_number} to PENDING (now qualifies)")
+            else:
+                # Still doesn't qualify - update last_revisited_at
+                await update_last_revisited_at(record_id)
+                counts["still_dropped"] += 1
+                logger.debug(
+                    f"Still dropped {repo}#{issue_number}: {drop_reason}"
+                )
+
+        except Exception as e:
+            # Don't fail the whole run for individual errors
+            counts["errored"] += 1
+            logger.error(f"Error revisiting {repo}#{issue_number}: {e}")
+            try:
+                await update_last_revisited_at(record_id)
+            except Exception as update_err:
+                logger.warning(
+                    f"Failed to update revisit timestamp for {record_id}: {update_err}"
+                )
+
+    logger.info(
+        f"Revisit complete: {counts['reset']} reset to PENDING, "
+        f"{counts['still_dropped']} still dropped, {counts['errored']} errored"
+    )
+    return counts
+
+
 async def main(args: argparse.Namespace) -> None:
     """Main entry point for the crawler CLI.
 
@@ -425,6 +516,14 @@ async def main(args: argparse.Namespace) -> None:
 
     if args.retry_errors:
         await run_retry_errors()
+        return
+
+    if args.revisit_dropped:
+        await run_revisit_dropped(
+            days_threshold=args.revisit_days,
+            limit=args.limit,
+        )
+        await run_status_report()
         return
 
     repos = args.repos or DEFAULT_REPOS
@@ -510,6 +609,17 @@ def parse_args() -> argparse.Namespace:
         "--retry-errors",
         action="store_true",
         help="Retry ERROR state issues",
+    )
+    parser.add_argument(
+        "--revisit-dropped",
+        action="store_true",
+        help="Revisit DROPPED issues to check if they now qualify",
+    )
+    parser.add_argument(
+        "--revisit-days",
+        type=int,
+        default=5,
+        help="Days threshold for revisiting dropped issues (default: 5)",
     )
     parser.add_argument(
         "--quality-threshold",

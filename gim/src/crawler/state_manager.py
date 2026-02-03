@@ -301,3 +301,120 @@ async def issue_exists(repo: str, issue_number: int) -> bool:
         limit=1,
     )
     return len(records) > 0
+
+
+async def get_dropped_issues_for_revisit(
+    days_threshold: int = 5,
+    limit: int = 100,
+) -> List[Dict[str, Any]]:
+    """Get dropped issues that are due for revisit.
+
+    An issue is due for revisit if:
+    - status = 'DROPPED' AND
+    - ((last_revisited_at IS NULL AND updated_at < now - threshold) OR
+       (last_revisited_at < now - threshold))
+
+    Args:
+        days_threshold: Number of days since last update/revisit before revisiting.
+        limit: Maximum records to return.
+
+    Returns:
+        List[Dict[str, Any]]: Dropped records ready for revisit.
+    """
+    from datetime import timedelta
+
+    threshold_date = datetime.now(timezone.utc) - timedelta(days=days_threshold)
+    threshold_iso = threshold_date.isoformat()
+
+    # Query DROPPED records, then filter client-side for complex conditions.
+    # PostgREST has limited support for (A AND B) OR (A AND C) patterns with NULLs.
+    # Ordering by updated_at ascending ensures oldest issues are processed first.
+    # The 1000 limit is a reasonable batch size; if more exist, they'll be
+    # processed in the next daily run.
+    records = await query_records(
+        table=TABLE,
+        filters={"status": CrawlerStatus.DROPPED.value},
+        limit=1000,
+        order_by="updated_at",
+        ascending=True,
+    )
+
+    # Filter for records due for revisit
+    due_for_revisit = []
+    for r in records:
+        last_revisited = r.get("last_revisited_at")
+        updated_at = r.get("updated_at")
+
+        if last_revisited is None:
+            # Never revisited - check updated_at
+            if updated_at and updated_at < threshold_iso:
+                due_for_revisit.append(r)
+        else:
+            # Previously revisited - check last_revisited_at
+            if last_revisited < threshold_iso:
+                due_for_revisit.append(r)
+
+        if len(due_for_revisit) >= limit:
+            break
+
+    logger.info(
+        f"Found {len(due_for_revisit)} dropped issues due for revisit "
+        f"(threshold: {days_threshold} days)"
+    )
+    return due_for_revisit
+
+
+async def update_last_revisited_at(
+    record_id: str,
+) -> Dict[str, Any]:
+    """Update a record's last_revisited_at and increment revisit_count.
+
+    Called when a dropped issue is revisited but still doesn't pass filters.
+
+    Note: This uses a read-then-write pattern for revisit_count which has a
+    theoretical race condition. However, the daily schedule makes concurrent
+    updates unlikely, and losing an increment only affects metrics.
+
+    Args:
+        record_id: UUID of the crawler_state record.
+
+    Returns:
+        Dict[str, Any]: Updated record.
+    """
+    # Get current revisit_count (read-then-write pattern)
+    records = await query_records(
+        table=TABLE,
+        filters={"id": record_id},
+        select="revisit_count",
+        limit=1,
+    )
+    current_count = records[0].get("revisit_count", 0) if records else 0
+
+    update_data = {
+        "last_revisited_at": datetime.now(timezone.utc).isoformat(),
+        "revisit_count": current_count + 1,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return await update_record(table=TABLE, record_id=record_id, data=update_data)
+
+
+async def reset_dropped_to_pending(
+    record_id: str,
+) -> Dict[str, Any]:
+    """Reset a dropped record back to PENDING for reprocessing.
+
+    Called when a revisited issue now passes filters (e.g., has merged PR).
+
+    Args:
+        record_id: UUID of the crawler_state record.
+
+    Returns:
+        Dict[str, Any]: Updated record.
+    """
+    update_data = {
+        "status": CrawlerStatus.PENDING.value,
+        "drop_reason": None,
+        "last_revisited_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    return await update_record(table=TABLE, record_id=record_id, data=update_data)

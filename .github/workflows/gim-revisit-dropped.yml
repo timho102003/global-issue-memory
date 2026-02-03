@@ -1,0 +1,95 @@
+name: GIM Revisit Dropped Issues
+
+on:
+  schedule:
+    # Run daily at 3:00 AM UTC (1 hour after main crawler)
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      revisit_days:
+        description: 'Days threshold before revisiting (default: 5)'
+        required: false
+        default: '5'
+      limit:
+        description: 'Max issues to revisit'
+        required: false
+        default: '100'
+
+jobs:
+  revisit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: gim
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Revisit dropped issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIM_GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+          INPUT_REVISIT_DAYS: ${{ inputs.revisit_days }}
+          INPUT_LIMIT: ${{ inputs.limit }}
+        run: |
+          ARGS="--revisit-dropped"
+          if [ -n "$INPUT_REVISIT_DAYS" ]; then
+            # Validate revisit_days is a positive integer (min 1)
+            if ! echo "$INPUT_REVISIT_DAYS" | grep -qE '^[1-9][0-9]*$'; then
+              echo "Invalid revisit_days (must be positive integer >= 1): $INPUT_REVISIT_DAYS"
+              exit 1
+            fi
+            ARGS="$ARGS --revisit-days $INPUT_REVISIT_DAYS"
+          fi
+          if [ -n "$INPUT_LIMIT" ]; then
+            # Validate limit is a positive integer (min 1)
+            if ! echo "$INPUT_LIMIT" | grep -qE '^[1-9][0-9]*$'; then
+              echo "Invalid limit (must be positive integer >= 1): $INPUT_LIMIT"
+              exit 1
+            fi
+            ARGS="$ARGS --limit $INPUT_LIMIT"
+          fi
+          uv run python -m scripts.github_crawler $ARGS
+
+      - name: Run full pipeline on reset issues
+        env:
+          GITHUB_TOKEN: ${{ secrets.GIM_GITHUB_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        run: |
+          # Process any issues that were reset to PENDING
+          uv run python -m scripts.github_crawler --phase fetch --limit 100
+          uv run python -m scripts.github_crawler --phase extract --limit 100
+          uv run python -m scripts.github_crawler --phase submit --limit 100
+
+      - name: Print status report
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          QDRANT_URL: ${{ secrets.QDRANT_URL }}
+          QDRANT_API_KEY: ${{ secrets.QDRANT_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          JWT_SECRET_KEY: ${{ secrets.JWT_SECRET_KEY }}
+        run: uv run python -m scripts.github_crawler --status-report

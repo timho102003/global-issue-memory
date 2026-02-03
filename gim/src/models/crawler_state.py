@@ -177,6 +177,8 @@ class CrawlerStateResponse(BaseModel):
         gim_issue_id: GIM master/child issue ID after submission.
         last_error: Last error message if status is ERROR.
         retry_count: Number of retry attempts.
+        last_revisited_at: When this dropped issue was last revisited.
+        revisit_count: Number of times this issue has been revisited.
         created_at: Record creation timestamp.
         updated_at: Record last update timestamp.
     """
@@ -210,5 +212,7 @@ class CrawlerStateResponse(BaseModel):
     gim_issue_id: Optional[UUID] = None
     last_error: Optional[str] = None
     retry_count: int = 0
+    last_revisited_at: Optional[datetime] = None
+    revisit_count: int = 0
     created_at: datetime
     updated_at: datetime

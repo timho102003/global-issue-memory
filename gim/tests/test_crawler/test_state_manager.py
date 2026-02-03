@@ -306,3 +306,152 @@ class TestIssueExists:
 
         mock_query.return_value = []
         assert await issue_exists("pallets/flask", 999) is False
+
+
+class TestGetDroppedIssuesForRevisit:
+    """Tests for get_dropped_issues_for_revisit."""
+
+    async def test_returns_old_never_revisited_issues(self, mock_query: AsyncMock) -> None:
+        """Returns dropped issues that were never revisited and are old enough."""
+        from src.crawler.state_manager import get_dropped_issues_for_revisit
+
+        old_date = "2025-01-01T00:00:00+00:00"
+        mock_query.return_value = [
+            {
+                "id": str(uuid4()),
+                "status": "DROPPED",
+                "updated_at": old_date,
+                "last_revisited_at": None,
+                "repo": "pallets/flask",
+                "issue_number": 1,
+            }
+        ]
+
+        result = await get_dropped_issues_for_revisit(days_threshold=5)
+        assert len(result) == 1
+        assert result[0]["updated_at"] == old_date
+
+    async def test_returns_old_previously_revisited_issues(self, mock_query: AsyncMock) -> None:
+        """Returns dropped issues that were revisited long ago."""
+        from src.crawler.state_manager import get_dropped_issues_for_revisit
+
+        old_date = "2025-01-01T00:00:00+00:00"
+        mock_query.return_value = [
+            {
+                "id": str(uuid4()),
+                "status": "DROPPED",
+                "updated_at": "2024-12-01T00:00:00+00:00",
+                "last_revisited_at": old_date,
+                "repo": "pallets/flask",
+                "issue_number": 1,
+            }
+        ]
+
+        result = await get_dropped_issues_for_revisit(days_threshold=5)
+        assert len(result) == 1
+        assert result[0]["last_revisited_at"] == old_date
+
+    async def test_excludes_recently_revisited(self, mock_query: AsyncMock) -> None:
+        """Excludes issues revisited within threshold."""
+        from src.crawler.state_manager import get_dropped_issues_for_revisit
+
+        # Recent date (within threshold)
+        recent_date = datetime.now(timezone.utc).isoformat()
+        mock_query.return_value = [
+            {
+                "id": str(uuid4()),
+                "status": "DROPPED",
+                "updated_at": "2024-12-01T00:00:00+00:00",
+                "last_revisited_at": recent_date,
+                "repo": "pallets/flask",
+                "issue_number": 1,
+            }
+        ]
+
+        result = await get_dropped_issues_for_revisit(days_threshold=5)
+        assert len(result) == 0
+
+    async def test_respects_limit(self, mock_query: AsyncMock) -> None:
+        """Respects the limit parameter."""
+        from src.crawler.state_manager import get_dropped_issues_for_revisit
+
+        old_date = "2025-01-01T00:00:00+00:00"
+        mock_query.return_value = [
+            {
+                "id": str(uuid4()),
+                "status": "DROPPED",
+                "updated_at": old_date,
+                "last_revisited_at": None,
+                "repo": "pallets/flask",
+                "issue_number": i,
+            }
+            for i in range(10)
+        ]
+
+        result = await get_dropped_issues_for_revisit(days_threshold=5, limit=3)
+        assert len(result) == 3
+
+    async def test_returns_empty_when_no_records(self, mock_query: AsyncMock) -> None:
+        """Returns empty list when no dropped records exist."""
+        from src.crawler.state_manager import get_dropped_issues_for_revisit
+
+        mock_query.return_value = []
+
+        result = await get_dropped_issues_for_revisit(days_threshold=5)
+        assert len(result) == 0
+
+
+class TestUpdateLastRevisitedAt:
+    """Tests for update_last_revisited_at."""
+
+    async def test_updates_timestamp_and_count(
+        self, mock_update: AsyncMock, mock_query: AsyncMock
+    ) -> None:
+        """Updates last_revisited_at and increments revisit_count."""
+        from src.crawler.state_manager import update_last_revisited_at
+
+        mock_query.return_value = [{"revisit_count": 2}]
+        record_id = str(uuid4())
+
+        await update_last_revisited_at(record_id)
+
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        update_data = call_args.kwargs.get("data") or call_args[0][2]
+        assert "last_revisited_at" in update_data
+        assert update_data["revisit_count"] == 3
+
+    async def test_initializes_count_when_none(
+        self, mock_update: AsyncMock, mock_query: AsyncMock
+    ) -> None:
+        """Initializes revisit_count to 1 when not set."""
+        from src.crawler.state_manager import update_last_revisited_at
+
+        mock_query.return_value = [{}]  # No revisit_count
+        record_id = str(uuid4())
+
+        await update_last_revisited_at(record_id)
+
+        call_args = mock_update.call_args
+        update_data = call_args.kwargs.get("data") or call_args[0][2]
+        assert update_data["revisit_count"] == 1
+
+
+class TestResetDroppedToPending:
+    """Tests for reset_dropped_to_pending."""
+
+    async def test_resets_status_and_clears_drop_reason(self, mock_update: AsyncMock) -> None:
+        """Resets status to PENDING and clears drop_reason."""
+        from src.crawler.state_manager import reset_dropped_to_pending
+
+        record_id = str(uuid4())
+
+        await reset_dropped_to_pending(record_id)
+
+        mock_update.assert_called_once()
+        call_args = mock_update.call_args
+        update_data = call_args.kwargs.get("data") or call_args[0][2]
+        assert update_data["status"] == "PENDING"
+        assert update_data["drop_reason"] is None
+        assert "last_revisited_at" in update_data
+        assert "updated_at" in update_data
