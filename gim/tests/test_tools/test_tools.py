@@ -158,7 +158,8 @@ class TestSubmitIssueTool:
 
             assert parsed["success"] is True
             assert parsed["submission_id"] == "test-submission-id"
-            assert "Processing in background" in parsed["message"]
+            assert "Submitted for Processing" in parsed["message"]
+            assert "Automatic Security Protection" in parsed["message"]
             mock_schedule.assert_called_once()
 
 

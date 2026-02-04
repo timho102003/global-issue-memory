@@ -94,6 +94,7 @@ from urllib.parse import urlencode
 from uuid import UUID
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_access_token
 from jinja2 import Environment, FileSystemLoader
 from starlette.middleware import Middleware
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -2267,6 +2268,59 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
             )
 
 
+async def _enforce_rate_limit(operation: str) -> Optional[str]:
+    """Enforce rate limiting for authenticated users.
+
+    Extracts the GIM identity from the access token and consumes a rate limit
+    unit for the specified operation.
+
+    Args:
+        operation: The operation name for rate limiting (e.g., "gim_search_issues").
+
+    Returns:
+        JSON error string if rate limit exceeded or identity invalid, None if allowed.
+    """
+    token = get_access_token()
+    if token is None:
+        # Unauthenticated requests are not rate limited at the tool level
+        # (IP-based rate limiting may apply at the HTTP layer)
+        return None
+
+    identity_id_str = token.claims.get("gim_identity_id")
+    if not identity_id_str:
+        # Token is valid but missing identity - block to prevent bypass
+        # This shouldn't happen in normal flow as token generation always includes it
+        logger.warning(f"Token missing gim_identity_id claim for operation {operation}")
+        return json.dumps({
+            "error": "invalid_token",
+            "message": "Token missing required identity claim",
+        })
+
+    try:
+        identity_id = UUID(identity_id_str)
+        rate_limiter = get_rate_limiter()
+        await rate_limiter.consume_rate_limit(identity_id, operation)
+        return None
+    except RateLimitExceeded as e:
+        return json.dumps({
+            "error": "rate_limit_exceeded",
+            "message": f"Daily limit exceeded ({e.limit}/day)",
+            "limit": e.limit,
+            "used": e.used,
+            "reset_at": e.reset_at.isoformat(),
+        })
+    except ValueError as e:
+        # Identity not found or invalid - block request to prevent bypass
+        logger.warning(
+            f"Rate limit enforcement failed for {operation}: {e}",
+            extra={"identity_id": identity_id_str},
+        )
+        return json.dumps({
+            "error": "invalid_identity",
+            "message": "Unable to validate identity for rate limiting",
+        })
+
+
 def _register_tools(mcp: FastMCP) -> None:
     """Register MCP tools.
 
@@ -2297,8 +2351,13 @@ def _register_tools(mcp: FastMCP) -> None:
             limit: Maximum number of results to return.
 
         Returns:
-            JSON string with search results.
+            JSON string with search results or error information.
         """
+        # Enforce rate limiting for authenticated users
+        rate_limit_error = await _enforce_rate_limit("gim_search_issues")
+        if rate_limit_error:
+            return rate_limit_error
+
         arguments = {
             "error_message": error_message,
             "model": model,
@@ -2325,8 +2384,13 @@ def _register_tools(mcp: FastMCP) -> None:
             include_related: Whether to include related issues.
 
         Returns:
-            JSON string with fix bundle details.
+            JSON string with fix bundle details or error information.
         """
+        # Enforce rate limiting for authenticated users
+        rate_limit_error = await _enforce_rate_limit("gim_get_fix_bundle")
+        if rate_limit_error:
+            return rate_limit_error
+
         arguments = {
             "issue_id": issue_id,
             "include_related": include_related,

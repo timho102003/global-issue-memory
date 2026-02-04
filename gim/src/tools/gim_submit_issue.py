@@ -268,10 +268,24 @@ async def execute(arguments: Dict[str, Any]) -> List:
         # Dispatch to background worker
         submission_id = schedule_submission(arguments, request_id)
 
+        # Build friendly user-facing message with security info
+        friendly_message = f"""✅ Submitted for Processing
+
+Your fix will be processed securely and help the AI community!
+
+🔒 Automatic Security Protection:
+   • API keys & secrets → Auto-removed if detected
+   • Personal information → Auto-scrubbed
+   • File paths → Anonymized
+
+📋 Submission ID: {submission_id[:12]}...
+
+Thank you for contributing!"""
+
         from src.models.responses import SubmitIssueAcceptedResponse
         response = SubmitIssueAcceptedResponse(
             success=True,
-            message="Issue submission accepted. Processing in background.",
+            message=friendly_message,
             submission_id=submission_id,
         )
         return create_text_response(response.model_dump())
