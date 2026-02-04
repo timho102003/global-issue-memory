@@ -46,9 +46,9 @@ export default function ProfilePage() {
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-bg-muted">
             <LogIn className="h-8 w-8 text-text-muted" />
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-text-primary">
+          <h2 className="text-2xl font-semibold tracking-tight text-text-primary">
             Sign in to view your profile
-          </h1>
+          </h2>
           <p className="max-w-md text-sm text-text-secondary">
             Your profile shows your GIM ID, contribution stats, and MCP configuration.
             Sign in or create a GIM ID to access it.
@@ -82,7 +82,7 @@ export default function ProfilePage() {
         />
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-semibold tracking-tight text-text-primary sm:text-[28px]">
-            GIM User
+            Profile
           </h1>
           <p className="text-[13px] text-text-secondary">
             Member since January 2025

@@ -1,5 +1,31 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, Clock, Calendar } from "lucide-react";
+
+/**
+ * Page-specific metadata for the blog listing page.
+ * Overrides default metadata from root layout.
+ */
+export const metadata: Metadata = {
+  title: "Blog",
+  description:
+    "Explore ideas, research, and updates on AI-assisted development, community-driven knowledge bases, and the tools that make collaborative coding better.",
+  openGraph: {
+    title: "Blog | GIM - Global Issue Memory",
+    description:
+      "Explore ideas, research, and updates on AI-assisted development, community-driven knowledge bases, and the tools that make collaborative coding better.",
+    url: "https://usegim.com/blog",
+    type: "website",
+  },
+  twitter: {
+    title: "Blog | GIM - Global Issue Memory",
+    description:
+      "Explore ideas, research, and updates on AI-assisted development, community-driven knowledge bases, and the tools that make collaborative coding better.",
+  },
+  alternates: {
+    canonical: "https://usegim.com/blog",
+  },
+};
 
 /**
  * Blog post metadata type.
