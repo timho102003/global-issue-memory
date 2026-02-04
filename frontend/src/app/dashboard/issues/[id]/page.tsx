@@ -70,8 +70,8 @@ export default function IssueDetailPage({
 
       {/* Compact Issue Header Card */}
       <div className="flex flex-col gap-4 rounded-2xl border border-border-light/80 bg-white p-5 shadow-[var(--shadow-card)] sm:p-6">
-        {/* Row 1: Badges + Confidence */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Row 1: Badges */}
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap items-center gap-2">
             <Badge
               category={CATEGORY_TO_BADGE[issue.root_cause_category]}
@@ -84,25 +84,6 @@ export default function IssueDetailPage({
                 {issue.child_issue_count} contribution{issue.child_issue_count !== 1 ? "s" : ""}
               </Badge>
             )}
-          </div>
-          <div className="flex items-center gap-2">
-            <div
-              role="meter"
-              aria-label="Confidence score"
-              aria-valuenow={Math.round(issue.confidence_score * 100)}
-              aria-valuemin={0}
-              aria-valuemax={100}
-              className="h-2 w-20 overflow-hidden rounded-full bg-bg-tertiary"
-            >
-              <div
-                className="h-full rounded-full bg-accent-warm transition-all duration-200"
-                style={{ width: `${Math.round(issue.confidence_score * 100)}%` }}
-                aria-hidden="true"
-              />
-            </div>
-            <span className="text-sm font-medium text-text-primary">
-              {Math.round(issue.confidence_score * 100)}%
-            </span>
           </div>
         </div>
 
@@ -156,7 +137,6 @@ export default function IssueDetailPage({
             {/* Inline trust signals */}
             <TrustSignals
               verificationCount={issue.verification_count}
-              successRate={issue.confidence_score}
               lastConfirmedAt={issue.last_confirmed_at}
               variant="inline"
             />

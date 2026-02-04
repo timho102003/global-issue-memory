@@ -2,10 +2,9 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Users } from "lucide-react";
+import { Users, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
-import { ConfidenceMeter } from "./confidence-meter";
 import { formatRelativeTime } from "@/lib/utils";
 import type { MasterIssue, RootCauseCategory } from "@/types";
 import { CATEGORY_DISPLAY, STATUS_DISPLAY } from "@/types";
@@ -57,7 +56,12 @@ export function IssueCard({ issue, className }: IssueCardProps) {
         <Badge category={badgeCategory}>{categoryInfo.label}</Badge>
         <div className="flex items-center gap-2.5">
           <Badge variant={statusInfo.variant}>{statusInfo.label}</Badge>
-          <ConfidenceMeter value={issue.confidence_score} />
+          {issue.verification_count > 0 && (
+            <span className="flex items-center gap-1 text-xs font-medium text-cat-environment">
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              {issue.verification_count} verified
+            </span>
+          )}
         </div>
       </div>
 

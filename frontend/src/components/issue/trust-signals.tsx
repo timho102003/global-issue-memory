@@ -1,9 +1,10 @@
-import { Users, ThumbsUp, Clock } from "lucide-react";
+import { Users, Clock } from "lucide-react";
 import { formatNumber, formatRelativeTime } from "@/lib/utils";
 
 interface TrustSignalsProps {
   verificationCount: number;
-  successRate: number;
+  /** @deprecated No longer displayed - kept for backwards compatibility */
+  successRate?: number;
   lastConfirmedAt?: string;
   variant?: "card" | "inline";
 }
@@ -14,7 +15,6 @@ interface TrustSignalsProps {
  */
 export function TrustSignals({
   verificationCount,
-  successRate,
   lastConfirmedAt,
   variant = "card",
 }: TrustSignalsProps) {
@@ -25,14 +25,6 @@ export function TrustSignals({
         <span className="text-[13px] text-text-primary">
           <strong>{formatNumber(verificationCount)}</strong>{" "}
           <span className="text-text-secondary">uses</span>
-        </span>
-      </div>
-      <div className="hidden h-4 w-px bg-border-light sm:block" />
-      <div className="flex items-center gap-2">
-        <ThumbsUp className="h-4 w-4 text-text-muted" />
-        <span className="text-[13px] text-text-primary">
-          <strong>{Math.round(successRate * 100)}%</strong>{" "}
-          <span className="text-text-secondary">confidence</span>
         </span>
       </div>
       {lastConfirmedAt && (
