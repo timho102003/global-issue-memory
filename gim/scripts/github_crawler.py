@@ -67,6 +67,7 @@ DEFAULT_REPOS = [
     "microsoft/semantic-kernel",
     "ollama/ollama",
     "vllm-project/vllm",
+    "QwenLM/Qwen3-TTS",
     # -- Vector Databases --
     "qdrant/qdrant",
     "chroma-core/chroma",
