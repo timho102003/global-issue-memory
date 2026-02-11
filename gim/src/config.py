@@ -27,6 +27,8 @@ class Settings(BaseSettings):
         http_port: Port for HTTP server.
         frontend_url: Production frontend URL for CORS.
         default_daily_search_limit: Default daily limit for search operations.
+        ip_submit_max_requests: Max issue submissions per IP per window.
+        ip_submit_window_seconds: Submission rate limit window in seconds.
     """
 
     # Supabase
@@ -103,6 +105,19 @@ class Settings(BaseSettings):
         default=100,
         ge=1,
         description="Default daily limit for search and get_fix_bundle operations"
+    )
+    ip_submit_max_requests: int = Field(
+        default=20, ge=1, le=100,
+        description="Max issue submissions per IP per window"
+    )
+    ip_submit_window_seconds: int = Field(
+        default=3600, ge=300, le=86400,
+        description="Submission rate limit window in seconds"
+    )
+    trust_proxy_headers: bool = Field(
+        default=False,
+        description="Trust CF-Connecting-IP and X-Forwarded-For headers. "
+                    "Only enable when behind a trusted reverse proxy (e.g., Cloudflare)."
     )
 
     # Auth enforcement

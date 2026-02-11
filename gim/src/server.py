@@ -104,7 +104,7 @@ from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse
 from starlette.responses import Response as StarletteResponse
 
 from src.auth.gim_id_service import get_gim_id_service
-from src.auth.ip_rate_limiter import get_gim_id_rate_limiter
+from src.auth.ip_rate_limiter import get_gim_id_rate_limiter, get_submit_issue_rate_limiter, get_client_ip
 from src.auth.jwt_service import get_jwt_service
 from src.auth.models import (
     ErrorResponse,
@@ -258,9 +258,10 @@ def _register_auth_endpoints(mcp: FastMCP) -> None:
         request_id = set_request_context()
 
         # IP-based rate limiting for GIM ID creation
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = get_client_ip(request)
         limiter = get_gim_id_rate_limiter()
         if not limiter.is_allowed(client_ip):
+            logger.warning("IP rate limit exceeded for gim_id_creation: ip=%s", client_ip)
             return JSONResponse(
                 content=ErrorResponse(
                     error="rate_limit_exceeded",
@@ -1875,6 +1876,21 @@ def _register_api_endpoints(mcp: FastMCP) -> None:
         Returns:
             JSON with created ChildIssue.
         """
+        # IP-based rate limiting for submissions (before auth to prevent timing attacks)
+        client_ip = get_client_ip(request)
+        limiter = get_submit_issue_rate_limiter()
+        settings = get_settings()
+        if not limiter.is_allowed(client_ip):
+            logger.warning("IP rate limit exceeded for submit_issue: ip=%s", client_ip)
+            return JSONResponse(
+                content=ErrorResponse(
+                    error="rate_limit_exceeded",
+                    error_description="Too many submission requests. Try again later.",
+                ).model_dump(),
+                status_code=429,
+                headers={"Retry-After": str(settings.ip_submit_window_seconds)},
+            )
+
         try:
             # Verify authorization
             auth_header = request.headers.get("Authorization", "")
