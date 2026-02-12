@@ -60,6 +60,8 @@ DEFAULT_REPOS = [
     "openai/openai-python",
     "openai/openai-agents-python",
     "anthropics/anthropic-sdk-python",
+    "anthropics/claude-agent-sdk-python",
+    "anthropics/claude-code",
     "run-llama/llama_index",
     "crewAIInc/crewAI",
     "microsoft/autogen",
